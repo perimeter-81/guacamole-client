@@ -23,7 +23,9 @@ import java.io.File;
 import java.sql.Connection;
 import java.sql.DatabaseMetaData;
 import java.sql.SQLException;
+import java.util.TimeZone;
 import org.apache.guacamole.GuacamoleException;
+import org.apache.guacamole.GuacamoleServerException;
 import org.apache.guacamole.auth.jdbc.JDBCEnvironment;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -53,11 +55,6 @@ public class MySQLEnvironment extends JDBCEnvironment {
     private static final MySQLVersion MYSQL_SUPPORTS_CTE = new MySQLVersion(8, 0, 1, false);
 
     /**
-     * The default MySQL-compatible driver to use, if not specified.
-     */
-    private static final MySQLDriver DEFAULT_DRIVER = MySQLDriver.MYSQL;
-    
-    /**
      * The default host to connect to, if MYSQL_HOSTNAME is not specified.
      */
     private static final String DEFAULT_HOSTNAME = "localhost";
@@ -83,7 +80,7 @@ public class MySQLEnvironment extends JDBCEnvironment {
      * The default value for the default maximum number of connections to be
      * allowed per user to any one connection.
      */
-    private final int DEFAULT_MAX_CONNECTIONS_PER_USER = 1;
+    private final int DEFAULT_MAX_CONNECTIONS_PER_USER = 0;
 
     /**
      * The default value for the default maximum number of connections to be
@@ -107,6 +104,20 @@ public class MySQLEnvironment extends JDBCEnvironment {
      * The default SSL mode for connecting to MySQL servers.
      */
     private final MySQLSSLMode DEFAULT_SSL_MODE = MySQLSSLMode.PREFERRED;
+    
+    /**
+     * The default maximum number of identifiers/parameters to be included in a 
+     * single batch when executing SQL statements for MySQL and MariaDB.
+     * 
+     * MySQL and MariaDB impose a limit on the maximum size of a query, 
+     * determined by the max_allowed_packet configuration variable. A value of 
+     * 1000 is chosen to accommodate the max_allowed_packet limit without 
+     * exceeding it.
+     *
+     * @see https://dev.mysql.com/doc/refman/8.0/en/server-system-variables.html#sysvar_max_allowed_packet
+     * @see https://mariadb.com/kb/en/server-system-variables/#max_allowed_packet
+     */
+    private static final int DEFAULT_BATCH_SIZE = 1000;
 
     /**
      * Constructs a new MySQLEnvironment, providing access to MySQL-specific
@@ -135,6 +146,13 @@ public class MySQLEnvironment extends JDBCEnvironment {
     public int getAbsoluteMaxConnections() throws GuacamoleException {
         return getProperty(MySQLGuacamoleProperties.MYSQL_ABSOLUTE_MAX_CONNECTIONS,
             DEFAULT_ABSOLUTE_MAX_CONNECTIONS
+        );
+    }
+    
+    @Override
+    public int getBatchSize() throws GuacamoleException {
+        return getProperty(MySQLGuacamoleProperties.MYSQL_BATCH_SIZE,
+            DEFAULT_BATCH_SIZE
         );
     }
 
@@ -177,21 +195,41 @@ public class MySQLEnvironment extends JDBCEnvironment {
 
     /**
      * Returns the MySQL driver that will be used to talk to the MySQL-compatible
-     * database server hosting the Guacamole Client database.  If unspecified
-     * a default value of MySQL will be used.
+     * database server hosting the Guacamole database. If unspecified, the
+     * installed MySQL driver will be automatically detected by inspecting the
+     * classes available in the classpath.
      * 
      * @return
      *     The MySQL driver that will be used to communicate with the MySQL-
      *     compatible server.
      * 
      * @throws GuacamoleException 
-     *     If guacamole.properties cannot be parsed.
+     *     If guacamole.properties cannot be parsed, or if no MySQL-compatible
+     *     JDBC driver is present.
      */
     public MySQLDriver getMySQLDriver() throws GuacamoleException {
-        return getProperty(
-            MySQLGuacamoleProperties.MYSQL_DRIVER,
-            DEFAULT_DRIVER
-        );
+
+        // Use any explicitly-specified driver
+        MySQLDriver driver = getProperty(MySQLGuacamoleProperties.MYSQL_DRIVER);
+        if (driver != null)
+            return driver;
+
+        // Attempt autodetection based on presence of JDBC driver within
+        // classpath...
+
+        if (MySQLDriver.MARIADB.isInstalled()) {
+            logger.info("Installed JDBC driver for MySQL/MariaDB detected as \"MariaDB Connector/J\".");
+            return MySQLDriver.MARIADB;
+        }
+
+        if (MySQLDriver.MYSQL.isInstalled()) {
+            logger.info("Installed JDBC driver for MySQL/MariaDB detected as \"MySQL Connector/J\".");
+            return MySQLDriver.MYSQL;
+        }
+
+        // No driver found at all
+        throw new GuacamoleServerException("No JDBC driver for MySQL/MariaDB is installed.");
+
     }
     
     /**
@@ -240,34 +278,14 @@ public class MySQLEnvironment extends JDBCEnvironment {
     public String getMySQLDatabase() throws GuacamoleException {
         return getRequiredProperty(MySQLGuacamoleProperties.MYSQL_DATABASE);
     }
-    
-    /**
-     * Returns the username that should be used when authenticating with the
-     * MySQL database containing the Guacamole authentication tables.
-     * 
-     * @return
-     *     The username for the MySQL database.
-     *
-     * @throws GuacamoleException 
-     *     If an error occurs while retrieving the property value, or if the
-     *     value was not set, as this property is required.
-     */
-    public String getMySQLUsername() throws GuacamoleException {
+
+    @Override
+    public String getUsername() throws GuacamoleException {
         return getRequiredProperty(MySQLGuacamoleProperties.MYSQL_USERNAME);
     }
     
-    /**
-     * Returns the password that should be used when authenticating with the
-     * MySQL database containing the Guacamole authentication tables.
-     * 
-     * @return
-     *     The password for the MySQL database.
-     *
-     * @throws GuacamoleException 
-     *     If an error occurs while retrieving the property value, or if the
-     *     value was not set, as this property is required.
-     */
-    public String getMySQLPassword() throws GuacamoleException {
+    @Override
+    public String getPassword() throws GuacamoleException {
         return getRequiredProperty(MySQLGuacamoleProperties.MYSQL_PASSWORD);
     }
 
@@ -369,7 +387,7 @@ public class MySQLEnvironment extends JDBCEnvironment {
      *     If guacamole.properties cannot be parsed.
      */
     public File getMySQLSSLClientStore() throws GuacamoleException {
-        return getProperty(MySQLGuacamoleProperties.MYSQL_SSL_TRUST_STORE);
+        return getProperty(MySQLGuacamoleProperties.MYSQL_SSL_CLIENT_STORE);
     }
     
     /**
@@ -384,13 +402,27 @@ public class MySQLEnvironment extends JDBCEnvironment {
      *     If guacamole.properties cannot be parsed.
      */
     public String getMYSQLSSLClientPassword() throws GuacamoleException {
-        return getProperty(MySQLGuacamoleProperties.MYSQL_SSL_TRUST_PASSWORD);
+        return getProperty(MySQLGuacamoleProperties.MYSQL_SSL_CLIENT_PASSWORD);
     }
     
     @Override
     public boolean autoCreateAbsentAccounts() throws GuacamoleException {
         return getProperty(MySQLGuacamoleProperties.MYSQL_AUTO_CREATE_ACCOUNTS,
                 false);
+    }
+
+    /**
+     * Return the server timezone if configured in guacamole.properties, or
+     * null if the configuration option is not present.
+     * 
+     * @return
+     *     The server timezone as configured in guacamole.properties.
+     * 
+     * @throws GuacamoleException 
+     *     If an error occurs retrieving the configuration value.
+     */
+    public TimeZone getServerTimeZone() throws GuacamoleException {
+        return getProperty(MySQLGuacamoleProperties.SERVER_TIMEZONE);
     }
 
 }

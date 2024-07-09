@@ -1,4 +1,4 @@
-#!/bin/sh -e
+#!/bin/bash -e
 #
 # Licensed to the Apache Software Foundation (ASF) under one
 # or more contributor license agreements.  See the NOTICE file
@@ -23,7 +23,7 @@
 ##
 ## Automatically configures and starts Guacamole under Tomcat. Guacamole's
 ## guacamole.properties file will be automatically generated based on the
-## linked database container (either MySQL or PostgreSQL) and the linked guacd
+## linked database container (either MySQL, PostgreSQL or SQLServer) and the linked guacd
 ## container. The Tomcat process will ultimately replace the process of this
 ## script, running in the foreground until terminated.
 ##
@@ -91,7 +91,7 @@ FATAL: Missing required environment variables
 -------------------------------------------------------------------------------
 If using a MySQL database, you must provide each of the following
 environment variables or their corresponding Docker secrets by appending _FILE
-to the environment variable, and setting the value to the path of the 
+to the environment variable, and setting the value to the path of the
 corresponding secret:
 
     MYSQL_USER         The user to authenticate as when connecting to
@@ -158,7 +158,7 @@ END
         mysql_missing_vars
         exit 1;
     fi
-    
+
     if [ -n "$MYSQL_PASSWORD_FILE" ]; then
         set_property "mysql-password" "`cat "$MYSQL_PASSWORD_FILE"`"
     elif [ -n "$MYSQL_PASSWORD" ]; then
@@ -231,6 +231,10 @@ END
         set_property "mysql-ssl-client-password" "$MYSQL_SSL_CLIENT_PASSWORD"
     fi
 
+    set_optional_property             \
+        "mysql-auto-create-accounts"  \
+        "$MYSQL_AUTO_CREATE_ACCOUNTS"
+
     # Add required .jar files to GUACAMOLE_LIB and GUACAMOLE_EXT
     ln -s /opt/guacamole/mysql/mysql-connector-*.jar "$GUACAMOLE_LIB"
     ln -s /opt/guacamole/mysql/guacamole-auth-*.jar "$GUACAMOLE_EXT"
@@ -238,49 +242,72 @@ END
 }
 
 # Print error message regarding missing required variables for PostgreSQL authentication
-postgres_missing_vars() {
+postgresql_missing_vars() {
     cat <<END
 FATAL: Missing required environment variables
 -------------------------------------------------------------------------------
 If using a PostgreSQL database, you must provide each of the following
 environment variables or their corresponding Docker secrets by appending _FILE
-to the environment variable, and setting the value to the path of the 
+to the environment variable, and setting the value to the path of the
 corresponding secret:
 
-    POSTGRES_USER      The user to authenticate as when connecting to
-                       PostgreSQL.
+    POSTGRESQL_USER      The user to authenticate as when connecting to
+                         PostgreSQL.
 
-    POSTGRES_PASSWORD  The password to use when authenticating with PostgreSQL
-                       as POSTGRES_USER.
+    POSTGRESQL_PASSWORD  The password to use when authenticating with PostgreSQL
+                         as POSTGRESQL_USER.
 
-    POSTGRES_DATABASE  The name of the PostgreSQL database to use for Guacamole
-                       authentication.
+    POSTGRESQL_DATABASE  The name of the PostgreSQL database to use for Guacamole
+                         authentication.
 END
     exit 1;
 }
+
+## Provide backward compatibility on POSTGRES_* environment variables
+## In case of new deployment, please use POSTGRESQL_* equivalent variables.
+for VAR_BASE in \
+    HOSTNAME PORT \
+    DATABASE USER PASSWORD \
+    DATABASE_FILE USER_FILE PASSWORD_FILE \
+    ABSOLUTE_MAX_CONNECTIONS DEFAULT_MAX_CONNECTIONS \
+    DEFAULT_MAX_GROUP_CONNECTIONS DEFAULT_MAX_CONNECTIONS_PER_USER \
+    DEFAULT_MAX_GROUP_CONNECTIONS_PER_USER \
+    DEFAULT_STATEMENT_TIMEOUT SOCKET_TIMEOUT \
+    USER_REQUIRED \
+    SSL_KEY_PASSWORD_FILE SSL_KEY_PASSWORD; do
+
+        OLD_VAR="POSTGRES_$VAR_BASE"
+        NEW_VAR="POSTGRESQL_$VAR_BASE"
+
+        if [ -n "${!OLD_VAR}" ]; then
+            printf -v "$NEW_VAR" "%s" "${!OLD_VAR}"
+            echo "WARNING: ${OLD_VAR} detected, please use ${NEW_VAR} for further deployments."
+        fi
+
+done
 
 ##
 ## Adds properties to guacamole.properties which select the PostgreSQL
 ## authentication provider, and configure it to connect to the linked
 ## PostgreSQL container. If a PostgreSQL database is explicitly specified using
-## the POSTGRES_HOSTNAME and POSTGRES_PORT environment variables, that will be
+## the POSTGRESQL_HOSTNAME and POSTGRESQL_PORT environment variables, that will be
 ## used instead of a linked container.
 ##
 associate_postgresql() {
 
     # Use linked container if specified
     if [ -n "$POSTGRES_NAME" ]; then
-        POSTGRES_HOSTNAME="$POSTGRES_PORT_5432_TCP_ADDR"
-        POSTGRES_PORT="$POSTGRES_PORT_5432_TCP_PORT"
+        POSTGRESQL_HOSTNAME="$POSTGRES_PORT_5432_TCP_ADDR"
+        POSTGRESQL_PORT="$POSTGRES_PORT_5432_TCP_PORT"
     fi
 
     # Use default port if none specified
-    POSTGRES_PORT="${POSTGRES_PORT-5432}"
+    POSTGRESQL_PORT="${POSTGRESQL_PORT-5432}"
 
     # Verify required connection information is present
-    if [ -z "$POSTGRES_HOSTNAME" -o -z "$POSTGRES_PORT" ]; then
+    if [ -z "$POSTGRESQL_HOSTNAME" -o -z "$POSTGRESQL_PORT" ]; then
         cat <<END
-FATAL: Missing POSTGRES_HOSTNAME or "postgres" link.
+FATAL: Missing POSTGRESQL_HOSTNAME or "postgres" link.
 -------------------------------------------------------------------------------
 If using a PostgreSQL database, you must either:
 
@@ -289,74 +316,82 @@ If using a PostgreSQL database, you must either:
 (b) If not using a Docker container for PostgreSQL, explicitly specify the TCP
     connection to your database using the following environment variables:
 
-    POSTGRES_HOSTNAME  The hostname or IP address of the PostgreSQL server. If
-                       not using a PostgreSQL Docker container and
-                       corresponding link, this environment variable is
-                       *REQUIRED*.
+    POSTGRESQL_HOSTNAME  The hostname or IP address of the PostgreSQL server. If
+                         not using a PostgreSQL Docker container and
+                         corresponding link, this environment variable is
+                         *REQUIRED*.
 
-    POSTGRES_PORT      The port on which the PostgreSQL server is listening for
-                       TCP connections. This environment variable is option. If
-                       omitted, the standard PostgreSQL port of 5432 will be
-                       used.
+    POSTGRESQL_PORT      The port on which the PostgreSQL server is listening for
+                         TCP connections. This environment variable is option. If
+                         omitted, the standard PostgreSQL port of 5432 will be
+                         used.
 END
         exit 1;
     fi
 
     # Verify that the required Docker secrets are present, else, default to their normal environment variables
-    if [ -n "$POSTGRES_USER_FILE" ]; then
-        set_property "postgresql-username" "`cat "$POSTGRES_USER_FILE"`"
-    elif [ -n "$POSTGRES_USER" ]; then
-        set_property "postgresql-username" "$POSTGRES_USER"
+    if [ -n "$POSTGRESQL_USER_FILE" ]; then
+        set_property "postgresql-username" "`cat "$POSTGRESQL_USER_FILE"`"
+    elif [ -n "$POSTGRESQL_USER" ]; then
+        set_property "postgresql-username" "$POSTGRESQL_USER"
     else
-        postgres_missing_vars
-        exit 1;
-    fi
-    
-    if [ -n "$POSTGRES_PASSWORD_FILE" ]; then
-        set_property "postgresql-password" "`cat "$POSTGRES_PASSWORD_FILE"`"
-    elif [ -n "$POSTGRES_PASSWORD" ]; then
-        set_property "postgresql-password" "$POSTGRES_PASSWORD"
-    else
-        postgres_missing_vars
+        postgresql_missing_vars
         exit 1;
     fi
 
-    if [ -n "$POSTGRES_DATABASE_FILE" ]; then
-        set_property "postgresql-database" "`cat "$POSTGRES_DATABASE_FILE"`"
-    elif [ -n "$POSTGRES_DATABASE" ]; then
-        set_property "postgresql-database" "$POSTGRES_DATABASE"
+    if [ -n "$POSTGRESQL_PASSWORD_FILE" ]; then
+        set_property "postgresql-password" "`cat "$POSTGRESQL_PASSWORD_FILE"`"
+    elif [ -n "$POSTGRESQL_PASSWORD" ]; then
+        set_property "postgresql-password" "$POSTGRESQL_PASSWORD"
     else
-        postgres_missing_vars
+        postgresql_missing_vars
+        exit 1;
+    fi
+
+    if [ -n "$POSTGRESQL_DATABASE_FILE" ]; then
+        set_property "postgresql-database" "`cat "$POSTGRESQL_DATABASE_FILE"`"
+    elif [ -n "$POSTGRESQL_DATABASE" ]; then
+        set_property "postgresql-database" "$POSTGRESQL_DATABASE"
+    else
+        postgresql_missing_vars
         exit 1;
     fi
 
     # Update config file
-    set_property "postgresql-hostname" "$POSTGRES_HOSTNAME"
-    set_property "postgresql-port"     "$POSTGRES_PORT"
+    set_property "postgresql-hostname" "$POSTGRESQL_HOSTNAME"
+    set_property "postgresql-port"     "$POSTGRESQL_PORT"
 
     set_optional_property               \
         "postgresql-absolute-max-connections" \
-        "$POSTGRES_ABSOLUTE_MAX_CONNECTIONS"
+        "$POSTGRESQL_ABSOLUTE_MAX_CONNECTIONS"
 
     set_optional_property                    \
         "postgresql-default-max-connections" \
-        "$POSTGRES_DEFAULT_MAX_CONNECTIONS"
+        "$POSTGRESQL_DEFAULT_MAX_CONNECTIONS"
 
     set_optional_property                          \
         "postgresql-default-max-group-connections" \
-        "$POSTGRES_DEFAULT_MAX_GROUP_CONNECTIONS"
+        "$POSTGRESQL_DEFAULT_MAX_GROUP_CONNECTIONS"
 
     set_optional_property                             \
         "postgresql-default-max-connections-per-user" \
-        "$POSTGRES_DEFAULT_MAX_CONNECTIONS_PER_USER"
+        "$POSTGRESQL_DEFAULT_MAX_CONNECTIONS_PER_USER"
 
     set_optional_property                                   \
         "postgresql-default-max-group-connections-per-user" \
-        "$POSTGRES_DEFAULT_MAX_GROUP_CONNECTIONS_PER_USER"
+        "$POSTGRESQL_DEFAULT_MAX_GROUP_CONNECTIONS_PER_USER"
+
+    set_optional_property                      \
+        "postgresql-default-statement-timeout" \
+        "$POSTGRESQL_DEFAULT_STATEMENT_TIMEOUT"
 
     set_optional_property          \
         "postgresql-user-required" \
-        "$POSTGRES_USER_REQUIRED"
+        "$POSTGRESQL_USER_REQUIRED"
+
+    set_optional_property           \
+        "postgresql-socket-timeout" \
+        "$POSTGRESQL_SOCKET_TIMEOUT"
 
     set_optional_property      \
         "postgresql-ssl-mode"  \
@@ -375,15 +410,167 @@ END
         "$POSTGRESQL_SSL_ROOT_CERT_FILE"
 
     # For SSL key password, check secrets, first, then standard env variable
-    if [ -n "$POSTGRES_SSL_KEY_PASSWORD_FILE" ]; then
-        set_property "postgresql-ssl-key-password" "`cat "$POSTGRES_SSL_KEY_PASSWORD_FILE"`"
-    elif [ -n "$POSTGRES_SSL_KEY_PASSWORD" ]; then
-        set_property "postgresql-ssl-key-password" "$POSTGRES_SSL_KEY_PASSWORD"
+    if [ -n "$POSTGRESQL_SSL_KEY_PASSWORD_FILE" ]; then
+        set_property "postgresql-ssl-key-password" "`cat "$POSTGRESQL_SSL_KEY_PASSWORD_FILE"`"
+    elif [ -n "$POSTGRESQL_SSL_KEY_PASSWORD" ]; then
+        set_property "postgresql-ssl-key-password" "$POSTGRESQL_SSL_KEY_PASSWORD"
     fi
+
+    set_optional_property                  \
+        "postgresql-auto-create-accounts"  \
+        "$POSTGRESQL_AUTO_CREATE_ACCOUNTS"
 
     # Add required .jar files to GUACAMOLE_LIB and GUACAMOLE_EXT
     ln -s /opt/guacamole/postgresql/postgresql-*.jar "$GUACAMOLE_LIB"
     ln -s /opt/guacamole/postgresql/guacamole-auth-*.jar "$GUACAMOLE_EXT"
+
+}
+
+# Print error message regarding missing required variables for SQLServer authentication
+sqlserver_missing_vars() {
+    cat <<END
+FATAL: Missing required environment variables
+-------------------------------------------------------------------------------
+If using a SQLServer database, you must provide each of the following
+environment variables:
+
+    SQLSERVER_USER     The user to authenticate as when connecting to
+                       SQLServer.
+
+    SQLSERVER_PASSWORD The password to use when authenticating with SQLServer
+                       as SQLSERVER_USER.
+
+    SQLSERVER_DATABASE The name of the SQLServer database to use for Guacamole
+                       authentication.
+
+Alternatively, if you want to store database credentials using Docker secrets,
+set the path of the corresponding secrets in the following three variables:
+
+    SQLSERVER_DATABASE_FILE   The path of the docker secret containing the name
+                              of database to use for Guacamole authentication.
+
+    SQLSERVER_USER_FILE       The path of the docker secret containing the name of
+                              the user that Guacamole will use to connect to SQLServer.
+
+    SQLSERVER_PASSWORD_FILE   The path of the docker secret containing the
+                              password that Guacamole will provide when connecting to
+                              SQLServer as SQLSERVER_USER.
+
+END
+    exit 1;
+}
+
+##
+## Adds properties to guacamole.properties which select the SQLServer
+## authentication provider, and configure it to connect to the linked
+## SQLServer container. If a SQLServer database is explicitly specified using
+## the SQLSERVER_HOSTNAME and SQLSERVER_PORT environment variables, that will
+## be used instead of a linked container.
+##
+associate_sqlserver() {
+
+    # Use linked container if specified
+    if [ -n "$SQLSERVER_NAME" ]; then
+        SQLSERVER_HOSTNAME="$SQLSERVER_PORT_1433_TCP_ADDR"
+        SQLSERVER_PORT="$SQLSERVER_PORT_1433_TCP_PORT"
+    fi
+
+    # Use default port if none specified
+    SQLSERVER_PORT="${SQLSERVER_PORT-1433}"
+
+    # Verify required connection information is present
+    if [ -z "$SQLSERVER_HOSTNAME" -o -z "$SQLSERVER_PORT" ]; then
+        cat <<END
+FATAL: Missing SQLSERVER_HOSTNAME or "sqlserver" link.
+-------------------------------------------------------------------------------
+If using a SQLServer database, you must either:
+
+(a) Explicitly link that container with the link named "sqlserver".
+
+(b) If not using a Docker container for SQLServer, explicitly specify the TCP
+    connection to your database using the following environment variables:
+
+    SQLSERVER_HOSTNAME The hostname or IP address of the SQLServer server. If
+                       not using a SQLServer Docker container and
+                       corresponding link, this environment variable is
+                       *REQUIRED*.
+
+    SQLSERVER_PORT     The port on which the SQLServer server is listening for
+                       TCP connections. This environment variable is option. If
+                       omitted, the standard SQLServer port of 1433 will be
+                       used.
+END
+        exit 1;
+    fi
+
+    # Verify that the required Docker secrets are present, else, default to their normal environment variables
+    if [ -n "$SQLSERVER_USER_FILE" ]; then
+        set_property "sqlserver-username" "`cat "$SQLSERVER_USER_FILE"`"
+    elif [ -n "$SQLSERVER_USER" ]; then
+        set_property "sqlserver-username" "$SQLSERVER_USER"
+    else
+        sqlserver_missing_vars
+        exit 1;
+    fi
+
+    if [ -n "$SQLSERVER_PASSWORD_FILE" ]; then
+        set_property "sqlserver-password" "`cat "$SQLSERVER_PASSWORD_FILE"`"
+    elif [ -n "$SQLSERVER_PASSWORD" ]; then
+        set_property "sqlserver-password" "$SQLSERVER_PASSWORD"
+    else
+        sqlserver_missing_vars
+        exit 1;
+    fi
+
+    if [ -n "$SQLSERVER_DATABASE_FILE" ]; then
+        set_property "sqlserver-database" "`cat "$SQLSERVER_DATABASE_FILE"`"
+    elif [ -n "$SQLSERVER_DATABASE" ]; then
+        set_property "sqlserver-database" "$SQLSERVER_DATABASE"
+    else
+        sqlserver_missing_vars
+        exit 1;
+    fi
+
+    # Update config file
+    set_property "sqlserver-hostname" "$SQLSERVER_HOSTNAME"
+    set_property "sqlserver-port"     "$SQLSERVER_PORT"
+    set_property "sqlserver-driver"   "microsoft2005"
+
+    set_optional_property               \
+        "sqlserver-absolute-max-connections" \
+        "$SQLSERVER_ABSOLUTE_MAX_CONNECTIONS"
+
+    set_optional_property                    \
+        "sqlserver-default-max-connections" \
+        "$SQLSERVER_DEFAULT_MAX_CONNECTIONS"
+
+    set_optional_property                          \
+        "sqlserver-default-max-group-connections" \
+        "$SQLSERVER_DEFAULT_MAX_GROUP_CONNECTIONS"
+
+    set_optional_property                             \
+        "sqlserver-default-max-connections-per-user" \
+        "$SQLSERVER_DEFAULT_MAX_CONNECTIONS_PER_USER"
+
+    set_optional_property                                   \
+        "sqlserver-default-max-group-connections-per-user" \
+        "$SQLSERVER_DEFAULT_MAX_GROUP_CONNECTIONS_PER_USER"
+
+    set_optional_property          \
+        "sqlserver-user-required" \
+        "$SQLSERVER_USER_REQUIRED"
+
+    set_optional_property                  \
+        "sqlserver-auto-create-accounts"  \
+        "$SQLSERVER_AUTO_CREATE_ACCOUNTS"
+
+    set_optional_property      \
+        "sqlserver-instance"  \
+        "$SQLSERVER_INSTANCE"
+
+    # Add required .jar files to GUACAMOLE_LIB and GUACAMOLE_EXT
+    ln -s /opt/guacamole/sqlserver/mssql-jdbc-*.jar "$GUACAMOLE_LIB"
+    ln -s /opt/guacamole/sqlserver/guacamole-auth-*.jar "$GUACAMOLE_EXT"
 
 }
 
@@ -413,35 +600,27 @@ END
     fi
 
     # Update config file
-    set_property          "ldap-hostname"           "$LDAP_HOSTNAME"
-    set_optional_property "ldap-port"               "$LDAP_PORT"
-    set_optional_property "ldap-encryption-method"  "$LDAP_ENCRYPTION_METHOD"
-    set_optional_property "ldap-max-search-results" "$LDAP_MAX_SEARCH_RESULTS"
-    set_optional_property "ldap-search-bind-dn"     "$LDAP_SEARCH_BIND_DN"
-    set_optional_property "ldap-user-attributes"    "$LDAP_USER_ATTRIBUTES"
+    set_property          "ldap-hostname"                   "$LDAP_HOSTNAME"
+    set_property          "ldap-user-base-dn"               "$LDAP_USER_BASE_DN"
 
-    set_optional_property           \
-        "ldap-search-bind-password" \
-        "$LDAP_SEARCH_BIND_PASSWORD"
-
-    set_property          "ldap-user-base-dn"       "$LDAP_USER_BASE_DN"
-    set_optional_property "ldap-username-attribute" "$LDAP_USERNAME_ATTRIBUTE"
-    set_optional_property "ldap-member-attribute"   "$LDAP_MEMBER_ATTRIBUTE"
-    set_optional_property "ldap-user-search-filter" "$LDAP_USER_SEARCH_FILTER"
-    set_optional_property "ldap-config-base-dn"     "$LDAP_CONFIG_BASE_DN"
-    set_optional_property "ldap-group-base-dn"      "$LDAP_GROUP_BASE_DN"
-
-    set_optional_property           \
-        "ldap-group-name-attribute" \
-        "$LDAP_GROUP_NAME_ATTRIBUTE"
-
-    set_optional_property           \
-        "ldap-dereference-aliases"  \
-        "$LDAP_DEREFERENCE_ALIASES"
-
-    set_optional_property "ldap-follow-referrals"   "$LDAP_FOLLOW_REFERRALS"
-    set_optional_property "ldap-max-referral-hops"  "$LDAP_MAX_REFERRAL_HOPS"
-    set_optional_property "ldap-operation-timeout"  "$LDAP_OPERATION_TIMEOUT"
+    set_optional_property "ldap-port"                       "$LDAP_PORT"
+    set_optional_property "ldap-encryption-method"          "$LDAP_ENCRYPTION_METHOD"
+    set_optional_property "ldap-max-search-results"         "$LDAP_MAX_SEARCH_RESULTS"
+    set_optional_property "ldap-search-bind-dn"             "$LDAP_SEARCH_BIND_DN"
+    set_optional_property "ldap-user-attributes"            "$LDAP_USER_ATTRIBUTES"
+    set_optional_property "ldap-search-bind-password"       "$LDAP_SEARCH_BIND_PASSWORD"
+    set_optional_property "ldap-username-attribute"         "$LDAP_USERNAME_ATTRIBUTE"
+    set_optional_property "ldap-member-attribute"           "$LDAP_MEMBER_ATTRIBUTE"
+    set_optional_property "ldap-user-search-filter"         "$LDAP_USER_SEARCH_FILTER"
+    set_optional_property "ldap-config-base-dn"             "$LDAP_CONFIG_BASE_DN"
+    set_optional_property "ldap-group-base-dn"              "$LDAP_GROUP_BASE_DN"
+    set_optional_property "ldap-group-search-filter"        "$LDAP_GROUP_SEARCH_FILTER"
+    set_optional_property "ldap-member-attribute-type"      "$LDAP_MEMBER_ATTRIBUTE_TYPE"
+    set_optional_property "ldap-group-name-attribute"       "$LDAP_GROUP_NAME_ATTRIBUTE"
+    set_optional_property "ldap-dereference-aliases"        "$LDAP_DEREFERENCE_ALIASES"
+    set_optional_property "ldap-follow-referrals"           "$LDAP_FOLLOW_REFERRALS"
+    set_optional_property "ldap-max-referral-hops"          "$LDAP_MAX_REFERRAL_HOPS"
+    set_optional_property "ldap-operation-timeout"          "$LDAP_OPERATION_TIMEOUT"
 
     # Add required .jar files to GUACAMOLE_EXT
     ln -s /opt/guacamole/ldap/guacamole-auth-*.jar "$GUACAMOLE_EXT"
@@ -463,13 +642,13 @@ FATAL: Missing required environment variables
 If using RADIUS server, you must provide each of the following environment
 variables:
 
-    RADIUS_SHARED_SECRET   The shared secret to use when talking to the 
+    RADIUS_SHARED_SECRET   The shared secret to use when talking to the
                            RADIUS server.
 
-    RADIUS_AUTH_PROTOCOL   The authentication protocol to use when talking 
+    RADIUS_AUTH_PROTOCOL   The authentication protocol to use when talking
                            to the RADIUS server.
-                           Supported values are: 
-                             pap, chap, mschapv1, mschapv2, eap-md5, 
+                           Supported values are:
+                             pap, chap, mschapv1, mschapv2, eap-md5,
                              eap-tls and eap-ttls.
 END
         exit 1;
@@ -478,7 +657,7 @@ END
     # Verify provided files do exist and are readable
     if [ -n "$RADIUS_KEY_FILE" -a ! -r "$RADIUS_KEY_FILE" ]; then
        cat <<END
-FATAL: Provided file RADIUS_KEY_FILE=$RADIUS_KEY_FILE does not exist 
+FATAL: Provided file RADIUS_KEY_FILE=$RADIUS_KEY_FILE does not exist
        or is not readable!
 -------------------------------------------------------------------------------
 If you provide key or CA files you need to mount those into the container and
@@ -488,7 +667,7 @@ END
     fi
     if [ -n "$RADIUS_CA_FILE" -a ! -r "$RADIUS_CA_FILE" ]; then
        cat <<END
-FATAL: Provided file RADIUS_CA_FILE=$RADIUS_CA_FILE does not exist 
+FATAL: Provided file RADIUS_CA_FILE=$RADIUS_CA_FILE does not exist
        or is not readable!
 -------------------------------------------------------------------------------
 If you provide key or CA files you need to mount those into the container and
@@ -540,7 +719,7 @@ associate_openid() {
     if [ -z "$OPENID_AUTHORIZATION_ENDPOINT" ] || \
        [ -z "$OPENID_JWKS_ENDPOINT" ]          || \
        [ -z "$OPENID_ISSUER" ]                 || \
-       [ -z "$OPENID_CLIENT_ID" ]              || \          
+       [ -z "$OPENID_CLIENT_ID" ]              || \
        [ -z "$OPENID_REDIRECT_URI" ]
     then
         cat <<END
@@ -552,19 +731,19 @@ environment variables:
     OPENID_AUTHORIZATION_ENDPOINT   The authorization endpoint (URI) of the OpenID service.
 
     OPENID_JWKS_ENDPOINT            The endpoint (URI) of the JWKS service which defines
-                                    how received ID tokens (JSON Web Tokens or JWTs) 
+                                    how received ID tokens (JSON Web Tokens or JWTs)
                                     shall be validated.
 
     OPENID_ISSUER                   The issuer to expect for all received ID tokens.
 
-    OPENID_CLIENT_ID                The OpenID client ID which should be submitted 
-                                    to the OpenID service when necessary. 
-                                    This value is typically provided to you by the OpenID 
+    OPENID_CLIENT_ID                The OpenID client ID which should be submitted
+                                    to the OpenID service when necessary.
+                                    This value is typically provided to you by the OpenID
                                     service when OpenID credentials are generated for your application.
 
-    OPENID_REDIRECT_URI             The URI that should be submitted to the OpenID service such that 
-                                    they can redirect the authenticated user back to Guacamole after 
-                                    the authentication process is complete. This must be the full URL 
+    OPENID_REDIRECT_URI             The URI that should be submitted to the OpenID service such that
+                                    they can redirect the authenticated user back to Guacamole after
+                                    the authentication process is complete. This must be the full URL
                                     that a user would enter into their browser to access Guacamole.
 END
         exit 1;
@@ -577,12 +756,70 @@ END
     set_property          "openid-client-id"                 "$OPENID_CLIENT_ID"
     set_property          "openid-redirect-uri"              "$OPENID_REDIRECT_URI"
     set_optional_property "openid-username-claim-type"       "$OPENID_USERNAME_CLAIM_TYPE"
+    set_optional_property "openid-groups-claim-type"         "$OPENID_GROUPS_CLAIM_TYPE"
+    set_optional_property "openid-max-token-validity"        "$OPENID_MAX_TOKEN_VALIDITY"
 
     # Add required .jar files to GUACAMOLE_EXT
     # "1-{}" make it sorted as a first provider (only authentication)
     # so it can work together with the database providers (authorization)
     find /opt/guacamole/openid/ -name "*.jar" | awk -F/ '{print $NF}' | \
     xargs -I '{}' ln -s "/opt/guacamole/openid/{}" "${GUACAMOLE_EXT}/1-{}"
+
+}
+
+##
+## Adds properties to guacamole.properties which select the SAML
+## authentication provider, and configure it to connect to the specified SAML
+## provider.
+##
+
+associate_saml() {
+
+    # Verify required parameters are present
+    if [ -z "$SAML_IDP_METADATA_URL" ] && \
+       [ -z "$SAML_ENTITY_ID" -o -z "$SAML_CALLBACK_URL" -o -z "$SAML_IDP_URL" ]
+    then
+        cat <<END
+FATAL: Missing required environment variables
+-------------------------------------------------------------------------------
+If using a SAML authentication, you must provide either SAML_IDP_METADATA_URL
+or SAML_IDP_URL,  SAML_ENTITY_ID and SAML_CALLBACK_URL environment variables:
+
+    SAML_IDP_METADATA_URL   The URI of the XML metadata file that from the SAML Identity
+                            Provider that contains all of the information the SAML
+                            extension needs in order to know how to authenticate with
+                            the IdP. This URI can either be a remote server (e.g. https://)
+                            or a local file on the filesystem (e.g. file://).
+
+    SAML_IDP_URL            The URL of the Identity Provider (IdP), which the user
+                            will be redirected to in order to authenticate.
+
+    SAML_ENTITY_ID          The entity ID of the Guacamole SAML client, which is
+                            generally the URL of the Guacamole server.
+
+    SAML_CALLBACK_URL       The URL that the IdP will use once authentication has
+                            succeeded to return to the Guacamole web application and
+                            provide the authentication details to the SAML extension.
+END
+        exit 1;
+    fi
+
+    # Update config file
+    set_optional_property "saml-idp-metadata-url"            "$SAML_IDP_METADATA_URL"
+    set_optional_property "saml-idp-url"                     "$SAML_IDP_URL"
+    set_optional_property "saml-entity-id"                   "$SAML_ENTITY_ID"
+    set_optional_property "saml-callback-url"                "$SAML_CALLBACK_URL"
+    set_optional_property "saml-strict"                      "$SAML_STRICT"
+    set_optional_property "saml-debug"                       "$SAML_DEBUG"
+    set_optional_property "saml-compress-request"            "$SAML_COMPRESS_REQUEST"
+    set_optional_property "saml-compress-response"           "$SAML_COMPRESS_RESPONSE"
+    set_optional_property "saml-group-attribute"             "$SAML_GROUP_ATTRIBUTE"
+
+    # Add required .jar files to GUACAMOLE_EXT
+    # "1-{}" make it sorted as a first provider (only authentication)
+    # so it can work together with the database providers (authorization)
+    find /opt/guacamole/saml/ -name "*.jar" | awk -F/ '{print $NF}' | \
+    xargs -I '{}' ln -s "/opt/guacamole/saml/{}" "${GUACAMOLE_EXT}/1-{}"
 
 }
 
@@ -615,14 +852,14 @@ associate_duo() {
         cat <<END
 FATAL: Missing required environment variables
 -------------------------------------------------------------------------------
-If using the Duo authentication extension, you must provide each of the 
+If using the Duo authentication extension, you must provide each of the
 following environment variables:
 
     DUO_API_HOSTNAME        The hostname of the Duo API endpoint.
 
     DUO_INTEGRATION_KEY     The integration key provided for Guacamole by Duo.
 
-    DUO_SECRET_KEY          The secret key provided for Guacamole by Duo. 
+    DUO_SECRET_KEY          The secret key provided for Guacamole by Duo.
 
     DUO_APPLICATION_KEY     An arbitrary, random key.
                             This value must be at least 40 characters.
@@ -641,15 +878,159 @@ END
 }
 
 ##
+## Adds properties to guacamole.properties which configure the header
+## authentication provider.
+##
+associate_header() {
+    # Update config file
+    set_optional_property "http-auth-header"         "$HTTP_AUTH_HEADER"
+
+    # Add required .jar files to GUACAMOLE_EXT
+    ln -s /opt/guacamole/header/guacamole-auth-*.jar "$GUACAMOLE_EXT"
+}
+
+##
+## Adds properties to guacamole.properties witch configure the CAS
+## authentication service.
+##
+associate_cas() {
+    # Verify required parameters are present
+    if [ -z "$CAS_AUTHORIZATION_ENDPOINT" ] || \
+       [ -z "$CAS_REDIRECT_URI" ]
+    then
+        cat <<END
+FATAL: Missing required environment variables
+-----------------------------------------------------------------------------------
+If using the CAS authentication extension, you must provide each of the
+following environment variables:
+
+    CAS_AUTHORIZATION_ENDPOINT      The URL of the CAS authentication server.
+
+    CAS_REDIRECT_URI                The URI to redirect back to upon successful authentication.
+
+END
+        exit 1;
+    fi
+
+    # Update config file
+    set_property            "cas-authorization-endpoint"       "$CAS_AUTHORIZATION_ENDPOINT"
+    set_property            "cas-redirect-uri"                 "$CAS_REDIRECT_URI"
+    set_optional_property   "cas-clearpass-key"                "$CAS_CLEARPASS_KEY"
+    set_optional_property   "cas-group-attribute"              "$CAS_GROUP_ATTRIBUTE"
+    set_optional_property   "cas-group-format"                 "$CAS_GROUP_FORMAT"
+    set_optional_property   "cas-group-ldap-base-dn"           "$CAS_GROUP_LDAP_BASE_DN"
+    set_optional_property   "cas-group-ldap-attribute"         "$CAS_GROUP_LDAP_ATTRIBUTE"
+
+    # Add required .jar files to GUACAMOLE_EXT
+    ln -s /opt/guacamole/cas/guacamole-auth-*.jar   "$GUACAMOLE_EXT"
+}
+
+##
+## Adds properties to guacamole.properties which configure the json
+## authentication provider.
+##
+associate_json() {
+    # Update config file
+    set_property          "json-secret-key"        "$JSON_SECRET_KEY"
+    set_optional_property "json-trusted-networks"  "$JSON_TRUSTED_NETWORKS"
+
+    # Add required .jar files to GUACAMOLE_EXT
+    ln -s /opt/guacamole/json/guacamole-auth-*.jar "$GUACAMOLE_EXT"
+}
+
+##  
+## Adds properties to guacamole.properties which configure the recording
+## storage extension.
+##  
+associate_recordings() {
+    # Update config file
+    set_property "recording-search-path" "$RECORDING_SEARCH_PATH"
+    
+    # Add required .jar files to GUACAMOLE_EXT
+    ln -s /opt/guacamole/recordings/guacamole-history-recording-storage-*.jar "$GUACAMOLE_EXT"
+}
+
+##
+## Sets up Tomcat's remote IP valve that allows gathering the remote IP
+## from headers set by a remote proxy
+## Upstream documentation: https://tomcat.apache.org/tomcat-8.5-doc/api/org/apache/catalina/valves/RemoteIpValve.html
+##
+enable_remote_ip_valve() {
+    # Add <Valve> element
+    xmlstarlet edit --inplace \
+        --insert '/Server/Service/Engine/Host/*' --type elem -n Valve \
+        --insert '/Server/Service/Engine/Host/Valve[not(@className)]' --type attr -n className -v org.apache.catalina.valves.RemoteIpValve \
+        $CATALINA_BASE/conf/server.xml
+
+    # Allowed IPs
+    if [ -z "$PROXY_ALLOWED_IPS_REGEX" ]; then
+        echo "Using default Tomcat allowed IPs regex"
+    else
+        xmlstarlet edit --inplace \
+            --insert '/Server/Service/Engine/Host/Valve[@className="org.apache.catalina.valves.RemoteIpValve"]' \
+            --type attr -n internalProxies -v "$PROXY_ALLOWED_IPS_REGEX" \
+            $CATALINA_BASE/conf/server.xml
+    fi
+
+    # X-Forwarded-For
+    if [ -z "$PROXY_IP_HEADER" ]; then
+        echo "Using default Tomcat proxy IP header"
+    else
+        xmlstarlet edit --inplace \
+            --insert "/Server/Service/Engine/Host/Valve[@className='org.apache.catalina.valves.RemoteIpValve']" \
+            --type attr -n remoteIpHeader -v "$PROXY_IP_HEADER" \
+            $CATALINA_BASE/conf/server.xml
+    fi
+
+    # X-Forwarded-Proto
+    if [ -z "$PROXY_PROTOCOL_HEADER" ]; then
+        echo "Using default Tomcat proxy protocol header"
+    else
+        xmlstarlet edit --inplace \
+            --insert "/Server/Service/Engine/Host/Valve[@className='org.apache.catalina.valves.RemoteIpValve']" \
+            --type attr -n protocolHeader -v "$PROXY_PROTOCOL_HEADER" \
+            $CATALINA_BASE/conf/server.xml
+    fi
+
+    # X-Forwarded-By
+    if [ -z "$PROXY_BY_HEADER" ]; then
+        echo "Using default Tomcat proxy forwarded by header"
+    else
+        xmlstarlet edit --inplace \
+            --insert "/Server/Service/Engine/Host/Valve[@className='org.apache.catalina.valves.RemoteIpValve']" \
+            --type attr -n remoteIpProxiesHeader -v "$PROXY_BY_HEADER" \
+            $CATALINA_BASE/conf/server.xml
+    fi
+}
+
+##
+## Adds api-session-timeout to guacamole.properties
+##
+associate_apisessiontimeout() {
+    set_optional_property "api-session-timeout" "$API_SESSION_TIMEOUT"
+}
+
+##
 ## Starts Guacamole under Tomcat, replacing the current process with the
 ## Tomcat process. As the current process will be replaced, this MUST be the
 ## last function run within the script.
 ##
 start_guacamole() {
 
+    # User-only writable CATALINA_BASE
+    export CATALINA_BASE=$HOME/tomcat
+    for dir in logs temp webapps work; do
+        mkdir -p $CATALINA_BASE/$dir
+    done
+    cp -R /usr/local/tomcat/conf $CATALINA_BASE
+
+    # Set up Tomcat RemoteIPValve
+    if [ "$REMOTE_IP_VALVE_ENABLED" = "true" ]; then
+        enable_remote_ip_valve
+    fi
+
     # Install webapp
-    rm -Rf /usr/local/tomcat/webapps/${WEBAPP_CONTEXT:-guacamole}
-    ln -sf /opt/guacamole/guacamole.war /usr/local/tomcat/webapps/${WEBAPP_CONTEXT:-guacamole}.war
+    ln -sf /opt/guacamole/guacamole.war $CATALINA_BASE/webapps/${WEBAPP_CONTEXT:-guacamole}.war
 
     # Start tomcat
     cd /usr/local/tomcat
@@ -732,9 +1113,15 @@ if [ -n "$MYSQL_DATABASE" -o -n "$MYSQL_DATABASE_FILE" ]; then
 fi
 
 # Use PostgreSQL if database specified
-if [ -n "$POSTGRES_DATABASE" -o -n "$POSTGRES_DATABASE_FILE" ]; then
+if [ -n "$POSTGRESQL_DATABASE" -o -n "$POSTGRESQL_DATABASE_FILE" ]; then
     associate_postgresql
-    INSTALLED_AUTH="$INSTALLED_AUTH postgres"
+    INSTALLED_AUTH="$INSTALLED_AUTH postgresql"
+fi
+
+# Use SQLServer if database specified
+if [ -n "$SQLSERVER_DATABASE" -o -n "$SQLSERVER_DATABASE_FILE" ]; then
+    associate_sqlserver
+    INSTALLED_AUTH="$INSTALLED_AUTH sqlserver"
 fi
 
 # Use LDAP directory if specified
@@ -755,21 +1142,10 @@ if [ -n "$OPENID_AUTHORIZATION_ENDPOINT" ]; then
     INSTALLED_AUTH="$INSTALLED_AUTH openid"
 fi
 
-#
-# Validate that at least one authentication backend is installed
-#
-
-if [ -z "$INSTALLED_AUTH" -a -z "$GUACAMOLE_HOME_TEMPLATE" ]; then
-    cat <<END
-FATAL: No authentication configured
--------------------------------------------------------------------------------
-The Guacamole Docker container needs at least one authentication mechanism in
-order to function, such as a MySQL database, PostgreSQL database, LDAP
-directory or RADIUS server. Please specify at least the MYSQL_DATABASE or 
-POSTGRES_DATABASE environment variables, or check Guacamole's Docker 
-documentation regarding configuring LDAP and/or custom extensions.
-END
-    exit 1;
+# Use SAML if specified
+if [ -n "$SAML_IDP_METADATA_URL" ] || [ -n "$SAML_ENTITY_ID" -a -n "$SAML_CALLBACK_URL" ]; then
+    associate_saml
+    INSTALLED_AUTH="$INSTALLED_AUTH saml"
 fi
 
 # Use TOTP if specified.
@@ -780,6 +1156,53 @@ fi
 # Use Duo if specified.
 if [ -n "$DUO_API_HOSTNAME" ]; then
     associate_duo
+fi
+
+# Use header if specified.
+if [ "$HEADER_ENABLED" = "true" ]; then
+    associate_header
+fi
+
+# Use CAS if specified.
+if [ -n "$CAS_AUTHORIZATION_ENDPOINT" ]; then
+    associate_cas
+fi
+
+# Use json-auth if specified.
+if [ -n "$JSON_SECRET_KEY" ]; then
+    associate_json
+    INSTALLED_AUTH="$INSTALLED_AUTH json"
+fi
+
+# Add in the history recording storage extension if configured
+if [ -n "$RECORDING_SEARCH_PATH" ]; then
+    associate_recordings
+fi
+
+#
+# Validate that at least one authentication backend is installed
+#
+
+if [ -z "$INSTALLED_AUTH" -a -z "$GUACAMOLE_HOME_TEMPLATE" ]; then
+    cat <<END
+FATAL: No authentication configured
+-------------------------------------------------------------------------------
+The Guacamole Docker container needs at least one authentication mechanism in
+order to function, such as a MySQL database, PostgreSQL database, SQLServer
+database, LDAP directory or RADIUS server. Please specify at least the
+MYSQL_DATABASE or POSTGRESQL_DATABASE or SQLSERVER_DATABASE environment variables,
+or check Guacamole's Docker documentation regarding configuring LDAP and/or
+custom extensions.
+END
+    exit 1;
+fi
+
+# Set extension priority if specified
+set_optional_property "extension-priority" "$EXTENSION_PRIORITY"
+
+# Use api-session-timeout if specified.
+if [ -n "$API_SESSION_TIMEOUT" ]; then
+    associate_apisessiontimeout
 fi
 
 # Set logback level if specified
@@ -793,4 +1216,3 @@ fi
 #
 
 start_guacamole
-

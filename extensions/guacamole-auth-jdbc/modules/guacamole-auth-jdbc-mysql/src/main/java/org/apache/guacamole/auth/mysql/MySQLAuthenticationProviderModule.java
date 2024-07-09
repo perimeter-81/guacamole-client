@@ -24,6 +24,7 @@ import com.google.inject.Module;
 import com.google.inject.name.Names;
 import java.io.File;
 import java.util.Properties;
+import java.util.TimeZone;
 import org.apache.guacamole.GuacamoleException;
 import org.apache.guacamole.auth.mysql.conf.MySQLDriver;
 import org.apache.guacamole.auth.mysql.conf.MySQLEnvironment;
@@ -71,8 +72,6 @@ public class MySQLAuthenticationProviderModule implements Module {
         myBatisProperties.setProperty("JDBC.host", environment.getMySQLHostname());
         myBatisProperties.setProperty("JDBC.port", String.valueOf(environment.getMySQLPort()));
         myBatisProperties.setProperty("JDBC.schema", environment.getMySQLDatabase());
-        myBatisProperties.setProperty("JDBC.username", environment.getMySQLUsername());
-        myBatisProperties.setProperty("JDBC.password", environment.getMySQLPassword());
         myBatisProperties.setProperty("JDBC.autoCommit", "false");
         myBatisProperties.setProperty("mybatis.pooled.pingEnabled", "true");
         myBatisProperties.setProperty("mybatis.pooled.pingQuery", "SELECT 1");
@@ -90,12 +89,15 @@ public class MySQLAuthenticationProviderModule implements Module {
         // For compatibility, set legacy useSSL property when SSL is disabled.
         if (sslMode == MySQLSSLMode.DISABLED)
             driverProperties.setProperty("useSSL", "false");
-        
+        // For compatibility, set legacy useSSL property when SSL is eisabled.(Required for mariadb connector/j)
+        else
+            driverProperties.setProperty("useSSL", "true");
+
         // Check other SSL settings and set as required
         File trustStore = environment.getMySQLSSLTrustStore();
         if (trustStore != null)
             driverProperties.setProperty("trustCertificateKeyStoreUrl",
-                    trustStore.getAbsolutePath());
+                    trustStore.toURI().toString());
         
         String trustPassword = environment.getMySQLSSLTrustPassword();
         if (trustPassword != null)
@@ -105,7 +107,7 @@ public class MySQLAuthenticationProviderModule implements Module {
         File clientStore = environment.getMySQLSSLClientStore();
         if (clientStore != null)
             driverProperties.setProperty("clientCertificateKeyStoreUrl",
-                    clientStore.getAbsolutePath());
+                    clientStore.toURI().toString());
         
         String clientPassword = environment.getMYSQLSSLClientPassword();
         if (clientPassword != null)
@@ -114,6 +116,11 @@ public class MySQLAuthenticationProviderModule implements Module {
         
         // Get the MySQL-compatible driver to use.
         mysqlDriver = environment.getMySQLDriver();
+
+        // If timezone is present, set it.
+        TimeZone serverTz = environment.getServerTimeZone();
+        if (serverTz != null)
+            driverProperties.setProperty("serverTimezone", serverTz.getID());
 
     }
 

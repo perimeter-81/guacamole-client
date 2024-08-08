@@ -25,27 +25,24 @@ var Guacamole = Guacamole || {};
  * included for debugging convenience.
  *
  * @constructor
- * @param {!number} code
+ * @param {Number} code
  *     The Guacamole status code, as defined by Guacamole.Status.Code.
  *
- * @param {string} [message]
+ * @param {String} [message]
  *     An optional human-readable message.
  */
 Guacamole.Status = function(code, message) {
 
     /**
      * Reference to this Guacamole.Status.
-     *
      * @private
-     * @type {!Guacamole.Status}
      */
     var guac_status = this;
 
     /**
      * The Guacamole status code.
-     *
      * @see Guacamole.Status.Code
-     * @type {!number}
+     * @type {Number}
      */
     this.code = code;
 
@@ -55,15 +52,14 @@ Guacamole.Status = function(code, message) {
      * for debugging purposes only. For user feedback, it is better to translate
      * the Guacamole status code into a message.
      * 
-     * @type {string}
+     * @type {String}
      */
     this.message = message;
 
     /**
      * Returns whether this status represents an error.
-     *
-     * @returns {!boolean}
-     *     true if this status represents an error, false otherwise.
+     * @returns {Boolean} true if this status represents an error, false
+     *                    otherwise.
      */
     this.isError = function() {
         return guac_status.code < 0 || guac_status.code > 0x00FF;
@@ -79,28 +75,28 @@ Guacamole.Status.Code = {
     /**
      * The operation succeeded.
      *
-     * @type {!number}
+     * @type {Number}
      */
     "SUCCESS": 0x0000,
 
     /**
      * The requested operation is unsupported.
      *
-     * @type {!number}
+     * @type {Number}
      */
     "UNSUPPORTED": 0x0100,
 
     /**
      * The operation could not be performed due to an internal failure.
      *
-     * @type {!number}
+     * @type {Number}
      */
     "SERVER_ERROR": 0x0200,
 
     /**
      * The operation could not be performed as the server is busy.
      *
-     * @type {!number}
+     * @type {Number}
      */
     "SERVER_BUSY": 0x0201,
 
@@ -108,7 +104,7 @@ Guacamole.Status.Code = {
      * The operation could not be performed because the upstream server is not
      * responding.
      *
-     * @type {!number}
+     * @type {Number}
      */
     "UPSTREAM_TIMEOUT": 0x0202,
 
@@ -116,7 +112,7 @@ Guacamole.Status.Code = {
      * The operation was unsuccessful due to an error or otherwise unexpected
      * condition of the upstream server.
      *
-     * @type {!number}
+     * @type {Number}
      */
     "UPSTREAM_ERROR": 0x0203,
 
@@ -124,7 +120,7 @@ Guacamole.Status.Code = {
      * The operation could not be performed as the requested resource does not
      * exist.
      *
-     * @type {!number}
+     * @type {Number}
      */
     "RESOURCE_NOT_FOUND": 0x0204,
 
@@ -132,7 +128,7 @@ Guacamole.Status.Code = {
      * The operation could not be performed as the requested resource is
      * already in use.
      *
-     * @type {!number}
+     * @type {Number}
      */
     "RESOURCE_CONFLICT": 0x0205,
 
@@ -140,7 +136,7 @@ Guacamole.Status.Code = {
      * The operation could not be performed as the requested resource is now
      * closed.
      *
-     * @type {!number}
+     * @type {Number}
      */
     "RESOURCE_CLOSED": 0x0206,
 
@@ -148,7 +144,7 @@ Guacamole.Status.Code = {
      * The operation could not be performed because the upstream server does
      * not appear to exist.
      *
-     * @type {!number}
+     * @type {Number}
      */
     "UPSTREAM_NOT_FOUND": 0x0207,
 
@@ -156,7 +152,7 @@ Guacamole.Status.Code = {
      * The operation could not be performed because the upstream server is not
      * available to service the request.
      *
-     * @type {!number}
+     * @type {Number}
      */
     "UPSTREAM_UNAVAILABLE": 0x0208,
 
@@ -164,7 +160,7 @@ Guacamole.Status.Code = {
      * The session within the upstream server has ended because it conflicted
      * with another session.
      *
-     * @type {!number}
+     * @type {Number}
      */
     "SESSION_CONFLICT": 0x0209,
 
@@ -172,21 +168,21 @@ Guacamole.Status.Code = {
      * The session within the upstream server has ended because it appeared to
      * be inactive.
      *
-     * @type {!number}
+     * @type {Number}
      */
     "SESSION_TIMEOUT": 0x020A,
 
     /**
      * The session within the upstream server has been forcibly terminated.
      *
-     * @type {!number}
+     * @type {Number}
      */
     "SESSION_CLOSED": 0x020B,
 
     /**
      * The operation could not be performed because bad parameters were given.
      *
-     * @type {!number}
+     * @type {Number}
      */
     "CLIENT_BAD_REQUEST": 0x0300,
 
@@ -194,7 +190,7 @@ Guacamole.Status.Code = {
      * Permission was denied to perform the operation, as the user is not yet
      * authorized (not yet logged in, for example).
      *
-     * @type {!number}
+     * @type {Number}
      */
     "CLIENT_UNAUTHORIZED": 0x0301,
 
@@ -202,28 +198,28 @@ Guacamole.Status.Code = {
      * Permission was denied to perform the operation, and this permission will
      * not be granted even if the user is authorized.
      *
-     * @type {!number}
+     * @type {Number}
      */
     "CLIENT_FORBIDDEN": 0x0303,
 
     /**
      * The client took too long to respond.
      *
-     * @type {!number}
+     * @type {Number}
      */
     "CLIENT_TIMEOUT": 0x0308,
 
     /**
      * The client sent too much data.
      *
-     * @type {!number}
+     * @type {Number}
      */
     "CLIENT_OVERRUN": 0x030D,
 
     /**
      * The client sent data of an unsupported or unexpected type.
      *
-     * @type {!number}
+     * @type {Number}
      */
     "CLIENT_BAD_TYPE": 0x030F,
 
@@ -231,7 +227,7 @@ Guacamole.Status.Code = {
      * The operation failed because the current client is already using too
      * many resources.
      *
-     * @type {!number}
+     * @type {Number}
      */
     "CLIENT_TOO_MANY": 0x031D
 
@@ -241,11 +237,11 @@ Guacamole.Status.Code = {
  * Returns the Guacamole protocol status code which most closely
  * represents the given HTTP status code.
  *
- * @param {!number} status
+ * @param {Number} status
  *     The HTTP status code to translate into a Guacamole protocol status
  *     code.
  *
- * @returns {!number}
+ * @returns {Number}
  *     The Guacamole protocol status code which most closely represents the
  *     given HTTP status code.
  */
@@ -285,11 +281,11 @@ Guacamole.Status.Code.fromHTTPCode = function fromHTTPCode(status) {
  * Returns the Guacamole protocol status code which most closely
  * represents the given WebSocket status code.
  *
- * @param {!number} code
+ * @param {Number} code
  *     The WebSocket status code to translate into a Guacamole protocol
  *     status code.
  *
- * @returns {!number}
+ * @returns {Number}
  *     The Guacamole protocol status code which most closely represents the
  *     given WebSocket status code.
  */

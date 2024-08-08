@@ -132,16 +132,11 @@ public abstract class ModeledObjectPermissionService
 
         // Create permissions only if user has permission to do so
         if (canAlterPermissions(user, targetEntity, permissions)) {
-
-            batchPermissionUpdates(permissions, permissionSubset -> {
-                Collection<ObjectPermissionModel> models = getModelInstances(
-                        targetEntity, permissionSubset);
-                getPermissionMapper().insert(models);
-            });
-
+            Collection<ObjectPermissionModel> models = getModelInstances(targetEntity, permissions);
+            getPermissionMapper().insert(models);
             return;
         }
-
+        
         // User lacks permission to create object permissions
         throw new GuacamoleSecurityException("Permission denied.");
 
@@ -155,13 +150,8 @@ public abstract class ModeledObjectPermissionService
 
         // Delete permissions only if user has permission to do so
         if (canAlterPermissions(user, targetEntity, permissions)) {
-
-            batchPermissionUpdates(permissions, permissionSubset -> {
-                Collection<ObjectPermissionModel> models = getModelInstances(
-                        targetEntity, permissionSubset);
-                getPermissionMapper().delete(models);
-            });
-
+            Collection<ObjectPermissionModel> models = getModelInstances(targetEntity, permissions);
+            getPermissionMapper().delete(models);
             return;
         }
         

@@ -20,8 +20,6 @@
 package org.apache.guacamole.protocol;
 
 import org.apache.guacamole.GuacamoleException;
-import static org.apache.guacamole.protocol.GuacamoleInstructionTest.TEST_CASES;
-import org.apache.guacamole.protocol.GuacamoleInstructionTest.TestCase;
 import static org.junit.Assert.*;
 import org.junit.Test;
 
@@ -37,46 +35,82 @@ public class GuacamoleParserTest {
     private final GuacamoleParser parser = new GuacamoleParser();
 
     /**
-     * Verify that GuacamoleParser correctly parses each of the instruction
-     * test cases included in the GuacamoleInstruction test.
-     *
-     * @throws GuacamoleException
-     *     If a parse error occurs.
+     * Test of append method, of class GuacamoleParser.
+     * 
+     * @throws GuacamoleException If a parse error occurs while parsing the
+     *                            known-good test string.
      */
     @Test
     public void testParser() throws GuacamoleException {
 
-        // Build buffer containing all of the instruction test cases, one after
-        // the other
-        StringBuilder allTestCases = new StringBuilder();
-        for (TestCase testCase : TEST_CASES)
-            allTestCases.append(testCase.UNPARSED);
-
-        // Prepare buffer and offsets for feeding the data into the parser as
-        // if received over the network
-        char buffer[] = allTestCases.toString().toCharArray();
+        // Test string
+        char buffer[] = "1.a,2.bc,3.def,10.helloworld;4.test,5.test2;0.;3.foo;".toCharArray();
         int offset = 0;
         int length = buffer.length;
 
-        // Verify that each of the expected instructions is received in order
-        for (TestCase testCase : TEST_CASES) {
+        GuacamoleInstruction instruction;
+        int parsed;
 
-            // Feed data into parser until parser refuses to receive more data
-            int parsed;
-            while (length > 0 && (parsed = parser.append(buffer, offset, length)) != 0) {
-                offset += parsed;
-                length -= parsed;
-            }
+        // Parse more data
+        while (length > 0 && (parsed = parser.append(buffer, offset, length)) != 0) {
+            offset += parsed;
+            length -= parsed;
+        }
 
-            // An instruction should now be parsed and ready for retrieval
-            assertTrue(parser.hasNext());
+        // Validate first test instruction
+        assertTrue(parser.hasNext());
+        instruction = parser.next();
+        assertNotNull(instruction);
+        assertEquals(3, instruction.getArgs().size());
+        assertEquals("a", instruction.getOpcode());
+        assertEquals("bc", instruction.getArgs().get(0));
+        assertEquals("def", instruction.getArgs().get(1));
+        assertEquals("helloworld", instruction.getArgs().get(2));
 
-            // Verify instruction contains expected opcode and args
-            GuacamoleInstruction instruction = parser.next();
-            assertNotNull(instruction);
-            assertEquals(testCase.OPCODE, instruction.getOpcode());
-            assertEquals(testCase.ARGS, instruction.getArgs());
+        // Parse more data
+        while (length > 0 && (parsed = parser.append(buffer, offset, length)) != 0) {
+            offset += parsed;
+            length -= parsed;
+        }
 
+        // Validate second test instruction
+        assertTrue(parser.hasNext());
+        instruction = parser.next();
+        assertNotNull(instruction);
+        assertEquals(1, instruction.getArgs().size());
+        assertEquals("test", instruction.getOpcode());
+        assertEquals("test2", instruction.getArgs().get(0));
+
+        // Parse more data
+        while (length > 0 && (parsed = parser.append(buffer, offset, length)) != 0) {
+            offset += parsed;
+            length -= parsed;
+        }
+
+        // Validate third test instruction
+        assertTrue(parser.hasNext());
+        instruction = parser.next();
+        assertNotNull(instruction);
+        assertEquals(0, instruction.getArgs().size());
+        assertEquals("", instruction.getOpcode());
+
+        // Parse more data
+        while (length > 0 && (parsed = parser.append(buffer, offset, length)) != 0) {
+            offset += parsed;
+            length -= parsed;
+        }
+
+        // Validate fourth test instruction
+        assertTrue(parser.hasNext());
+        instruction = parser.next();
+        assertNotNull(instruction);
+        assertEquals(0, instruction.getArgs().size());
+        assertEquals("foo", instruction.getOpcode());
+
+        // Parse more data
+        while (length > 0 && (parsed = parser.append(buffer, offset, length)) != 0) {
+            offset += parsed;
+            length -= parsed;
         }
 
         // There should be no more instructions

@@ -35,6 +35,7 @@ import org.apache.guacamole.auth.totp.user.UserTOTPKey;
 import org.apache.guacamole.auth.totp.conf.ConfigurationService;
 import org.apache.guacamole.form.Field;
 import org.apache.guacamole.totp.TOTPGenerator;
+import org.codehaus.jackson.annotate.JsonProperty;
 
 /**
  * Field which prompts the user for an authentication code generated via TOTP.
@@ -241,7 +242,8 @@ public class AuthenticationCodeField extends Field {
      *     If the configuration information required for generating the key URI
      *     cannot be read from guacamole.properties.
      */
-    public URI getKeyUri() throws GuacamoleException {
+    @JsonProperty("keyUri")
+    public URI getKeyURI() throws GuacamoleException {
 
         // Do not generate a key URI if no key is being exposed
         if (key == null)
@@ -274,10 +276,11 @@ public class AuthenticationCodeField extends Field {
      *     If the configuration information required for generating the QR code
      *     cannot be read from guacamole.properties.
      */
-    public String getQrCode() throws GuacamoleException {
+    @JsonProperty("qrCode")
+    public String getQRCode() throws GuacamoleException {
 
         // Do not generate a QR code if no key is being exposed
-        URI keyURI = getKeyUri();
+        URI keyURI = getKeyURI();
         if (keyURI == null)
             return null;
 

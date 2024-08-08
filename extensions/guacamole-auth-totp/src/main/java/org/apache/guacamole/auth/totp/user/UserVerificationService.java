@@ -108,7 +108,7 @@ public class UserVerificationService {
 
         // If no key is defined, attempt to generate a new key
         String secret = attributes.get(TOTPUser.TOTP_KEY_SECRET_ATTRIBUTE_NAME);
-        if (secret == null || secret.isEmpty()) {
+        if (secret == null) {
 
             // Generate random key for user
             TOTPGenerator.Mode mode = confService.getMode();
@@ -166,7 +166,7 @@ public class UserVerificationService {
 
         // Get mutable set of attributes
         User self = context.self();
-        Map<String, String> attributes = new HashMap<>();
+        Map<String, String> attributes = new HashMap<String, String>();
 
         // Set/overwrite current TOTP key state
         attributes.put(TOTPUser.TOTP_KEY_SECRET_ATTRIBUTE_NAME, BASE32.encode(key.getSecret()));
@@ -271,8 +271,7 @@ public class UserVerificationService {
 
             // Get generator based on user's key and provided configuration
             TOTPGenerator totp = new TOTPGenerator(key.getSecret(),
-                    confService.getMode(), confService.getDigits(),
-                    TOTPGenerator.DEFAULT_START_TIME, confService.getPeriod());
+                    confService.getMode(), confService.getDigits());
 
             // Verify provided TOTP against value produced by generator
             if ((code.equals(totp.generate()) || code.equals(totp.previous()))

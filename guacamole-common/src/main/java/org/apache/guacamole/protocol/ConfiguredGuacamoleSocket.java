@@ -20,15 +20,11 @@
 package org.apache.guacamole.protocol;
 
 import java.util.List;
-import org.apache.guacamole.GuacamoleConnectionClosedException;
 import org.apache.guacamole.GuacamoleException;
 import org.apache.guacamole.GuacamoleServerException;
 import org.apache.guacamole.io.GuacamoleReader;
 import org.apache.guacamole.io.GuacamoleWriter;
-import org.apache.guacamole.net.DelegatingGuacamoleSocket;
 import org.apache.guacamole.net.GuacamoleSocket;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 /**
  * A GuacamoleSocket which pre-configures the connection based on a given
@@ -40,13 +36,12 @@ import org.slf4j.LoggerFactory;
  * this GuacamoleSocket from manually controlling the initial protocol
  * handshake.
  */
-public class ConfiguredGuacamoleSocket extends DelegatingGuacamoleSocket {
+public class ConfiguredGuacamoleSocket implements GuacamoleSocket {
 
     /**
-     * Logger for this class.
+     * The wrapped socket.
      */
-    private static final Logger logger =
-            LoggerFactory.getLogger(ConfiguredGuacamoleSocket.class);
+    private GuacamoleSocket socket;
 
     /**
      * The configuration to use when performing the Guacamole protocol
@@ -68,83 +63,17 @@ public class ConfiguredGuacamoleSocket extends DelegatingGuacamoleSocket {
      */
     private GuacamoleProtocolVersion protocolVersion =
             GuacamoleProtocolVersion.VERSION_1_0_0;
-
-    /**
-     * Parses the given "error" instruction, throwing a GuacamoleException that
-     * corresponds to its status code and message.
-     *
-     * @param instruction
-     *     The "error" instruction to parse.
-     *
-     * @throws GuacamoleException
-     *     A GuacamoleException that corresponds to the status code and message
-     *     present within the given "error" instruction.
-     */
-    private static void handleReceivedError(GuacamoleInstruction instruction)
-            throws GuacamoleException {
-
-        // Provide reasonable default error message for invalid "error"
-        // instructions that fail to provide one
-        String message = "Internal error within guacd / protocol handling.";
-
-        // Consider all error instructions without a corresponding status code
-        // to be server errors
-        GuacamoleStatus status = GuacamoleStatus.SERVER_ERROR;
-
-        // Parse human-readable message from "error" instruction, warning if no
-        // message was given
-        List<String> args = instruction.getArgs();
-        if (args.size() >= 1)
-            message = args.get(0);
-        else
-            logger.debug("Received \"error\" instruction with no corresponding message.");
-
-        // Parse the status code from the received error instruction, warning
-        // if the status code is missing or invalid
-        if (args.size() >= 2) {
-            try {
-                
-                // Translate numeric status code into a GuacamoleStatus
-                int statusCode = Integer.parseInt(args.get(1));
-                GuacamoleStatus parsedStatus = GuacamoleStatus.fromGuacamoleStatusCode(statusCode);
-                if (parsedStatus != null)
-                    status = parsedStatus;
-                else
-                    logger.debug("Received \"error\" instruction with unknown/invalid status code: {}", statusCode);
-
-            }
-            catch (NumberFormatException e) {
-                logger.debug("Received \"error\" instruction with non-numeric status code.", e);
-            }
-        }
-        else
-            logger.debug("Received \"error\" instruction without status code.");
-
-        // Convert parsed status code and message to a GuacamoleException
-        throw status.toException(message);
-
-    }
-
+    
     /**
      * Waits for the instruction having the given opcode, returning that
      * instruction once it has been read. If the instruction is never read,
      * an exception is thrown.
-     *
-     * Respects server control instructions that are allowed during the handshake
-     * phase, namely {@code error} and {@code disconnect}.
-     *
-     * @param reader
-     *     The reader to read instructions from.
-     *
-     * @param opcode
-     *     The opcode of the instruction we are expecting.
-     *
-     * @return
-     *     The instruction having the given opcode.
-     *
-     * @throws GuacamoleException
-     *     If an error occurs while reading, or if the expected instruction is
-     *     not read.
+     * 
+     * @param reader The reader to read instructions from.
+     * @param opcode The opcode of the instruction we are expecting.
+     * @return The instruction having the given opcode.
+     * @throws GuacamoleException If an error occurs while reading, or if
+     *                            the expected instruction is not read.
      */
     private GuacamoleInstruction expect(GuacamoleReader reader, String opcode)
         throws GuacamoleException {
@@ -153,14 +82,6 @@ public class ConfiguredGuacamoleSocket extends DelegatingGuacamoleSocket {
         GuacamoleInstruction instruction = reader.readInstruction();
         if (instruction == null)
             throw new GuacamoleServerException("End of stream while waiting for \"" + opcode + "\".");
-
-        // Report connection closure if server explicitly disconnects
-        if ("disconnect".equals(instruction.getOpcode()))
-            throw new GuacamoleConnectionClosedException("Server disconnected while waiting for \"" + opcode + "\".");
-
-        // Pass through any received errors as GuacamoleExceptions
-        if ("error".equals(instruction.getOpcode()))
-            handleReceivedError(instruction);
 
         // Ensure instruction has expected opcode
         if (!instruction.getOpcode().equals(opcode))
@@ -204,7 +125,7 @@ public class ConfiguredGuacamoleSocket extends DelegatingGuacamoleSocket {
             GuacamoleConfiguration config,
             GuacamoleClientInformation info) throws GuacamoleException {
 
-        super(socket);
+        this.socket = socket;
         this.config = config;
 
         // Get reader and writer
@@ -293,14 +214,7 @@ public class ConfiguredGuacamoleSocket extends DelegatingGuacamoleSocket {
         if (GuacamoleProtocolCapability.TIMEZONE_HANDSHAKE.isSupported(protocolVersion)) {
             String timezone = info.getTimezone();
             if (timezone != null)
-                writer.writeInstruction(new GuacamoleInstruction("timezone", timezone));
-        }
-        
-        // Send client name, if supported and available
-        if (GuacamoleProtocolCapability.NAME_HANDSHAKE.isSupported(protocolVersion)) {
-            String name = info.getName();
-            if (name != null)
-                writer.writeInstruction(new GuacamoleInstruction("name", name));
+                writer.writeInstruction(new GuacamoleInstruction("timezone", info.getTimezone()));
         }
 
         // Send args
@@ -354,8 +268,23 @@ public class ConfiguredGuacamoleSocket extends DelegatingGuacamoleSocket {
     }
 
     @Override
-    public String getProtocol() {
-        return getConfiguration().getProtocol();
+    public GuacamoleWriter getWriter() {
+        return socket.getWriter();
+    }
+
+    @Override
+    public GuacamoleReader getReader() {
+        return socket.getReader();
+    }
+
+    @Override
+    public void close() throws GuacamoleException {
+        socket.close();
+    }
+
+    @Override
+    public boolean isOpen() {
+        return socket.isOpen();
     }
 
 }

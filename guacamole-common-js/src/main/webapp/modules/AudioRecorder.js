@@ -57,10 +57,10 @@ Guacamole.AudioRecorder = function AudioRecorder() {
  * implementation of Guacamole.AudioRecorder, and thus will be properly handled
  * by Guacamole.AudioRecorder.getInstance().
  *
- * @param {!string} mimetype
+ * @param {String} mimetype
  *     The mimetype to check.
  *
- * @returns {!boolean}
+ * @returns {Boolean}
  *     true if the given mimetype is supported by any built-in
  *     Guacamole.AudioRecorder, false otherwise.
  */
@@ -79,7 +79,7 @@ Guacamole.AudioRecorder.isSupportedType = function isSupportedType(mimetype) {
  * additional parameters. Something like "audio/L8;rate=44100" would be valid,
  * however (see https://tools.ietf.org/html/rfc4856).
  *
- * @returns {!string[]}
+ * @returns {String[]}
  *     A list of all mimetypes supported by any built-in
  *     Guacamole.AudioRecorder, excluding any parameters.
  */
@@ -94,10 +94,10 @@ Guacamole.AudioRecorder.getSupportedTypes = function getSupportedTypes() {
  * given audio format. If support for the given audio format is not available,
  * null is returned.
  *
- * @param {!Guacamole.OutputStream} stream
+ * @param {Guacamole.OutputStream} stream
  *     The Guacamole.OutputStream to send audio data through.
  *
- * @param {!string} mimetype
+ * @param {String} mimetype
  *     The mimetype of the audio data to be sent along the provided stream.
  *
  * @return {Guacamole.AudioRecorder}
@@ -123,10 +123,10 @@ Guacamole.AudioRecorder.getInstance = function getInstance(stream, mimetype) {
  *
  * @constructor
  * @augments Guacamole.AudioRecorder
- * @param {!Guacamole.OutputStream} stream
+ * @param {Guacamole.OutputStream} stream
  *     The Guacamole.OutputStream to write audio data to.
  *
- * @param {!string} mimetype
+ * @param {String} mimetype
  *     The mimetype of the audio data to send along the provided stream, which
  *     must be a "audio/L8" or "audio/L16" mimetype with necessary parameters,
  *     such as: "audio/L16;rate=44100,channels=2".
@@ -137,7 +137,7 @@ Guacamole.RawAudioRecorder = function RawAudioRecorder(stream, mimetype) {
      * Reference to this RawAudioRecorder.
      *
      * @private
-     * @type {!Guacamole.RawAudioRecorder}
+     * @type {Guacamole.RawAudioRecorder}
      */
     var recorder = this;
 
@@ -149,7 +149,7 @@ Guacamole.RawAudioRecorder = function RawAudioRecorder(stream, mimetype) {
      *
      * @private
      * @constant
-     * @type {!number}
+     * @type {Number}
      */
     var BUFFER_SIZE = 2048;
 
@@ -160,7 +160,7 @@ Guacamole.RawAudioRecorder = function RawAudioRecorder(stream, mimetype) {
      *
      * @private
      * @contant
-     * @type {!number}
+     * @type Number
      */
     var LANCZOS_WINDOW_SIZE = 3;
 
@@ -201,7 +201,7 @@ Guacamole.RawAudioRecorder = function RawAudioRecorder(stream, mimetype) {
      * provided when this Guacamole.RawAudioRecorder was created.
      *
      * @private
-     * @type {!Guacamole.ArrayBufferWriter}
+     * @type {Guacamole.ArrayBufferWriter}
      */
     var writer = new Guacamole.ArrayBufferWriter(stream);
 
@@ -221,7 +221,7 @@ Guacamole.RawAudioRecorder = function RawAudioRecorder(stream, mimetype) {
      * and will be 128 for 8-bit audio and 32768 for 16-bit audio.
      *
      * @private
-     * @type {!number}
+     * @type {Number}
      */
     var maxSampleValue = (format.bytesPerSample === 1) ? 128 : 32768;
 
@@ -230,7 +230,7 @@ Guacamole.RawAudioRecorder = function RawAudioRecorder(stream, mimetype) {
      * over the life of this audio recorder.
      *
      * @private
-     * @type {!number}
+     * @type {Number}
      */
     var readSamples = 0;
 
@@ -239,7 +239,7 @@ Guacamole.RawAudioRecorder = function RawAudioRecorder(stream, mimetype) {
      * connection over the life of this audio recorder.
      *
      * @private
-     * @type {!number}
+     * @type {Number}
      */
     var writtenSamples = 0;
 
@@ -247,8 +247,7 @@ Guacamole.RawAudioRecorder = function RawAudioRecorder(stream, mimetype) {
      * The audio stream provided by the browser, if allowed. If no stream has
      * yet been received, this will be null.
      *
-     * @private
-     * @type {MediaStream}
+     * @type MediaStream
      */
     var mediaStream = null;
 
@@ -276,10 +275,10 @@ Guacamole.RawAudioRecorder = function RawAudioRecorder(stream, mimetype) {
      * See: https://en.wikipedia.org/wiki/Sinc_function
      *
      * @private
-     * @param {!number} x
+     * @param {Number} x
      *     The point at which the normalized sinc function should be computed.
      *
-     * @returns {!number}
+     * @returns {Number}
      *     The value of the normalized sinc function at x.
      */
     var sinc = function sinc(x) {
@@ -299,14 +298,14 @@ Guacamole.RawAudioRecorder = function RawAudioRecorder(stream, mimetype) {
      * size. See: https://en.wikipedia.org/wiki/Lanczos_resampling
      *
      * @private
-     * @param {!number} x
+     * @param {Number} x
      *     The point at which the value of the Lanczos kernel should be
      *     computed.
      *
-     * @param {!number} a
+     * @param {Number} a
      *     The window size to use for the Lanczos kernel.
      *
-     * @returns {!number}
+     * @returns {Number}
      *     The value of the Lanczos kernel at the given point for the given
      *     window size.
      */
@@ -328,16 +327,16 @@ Guacamole.RawAudioRecorder = function RawAudioRecorder(stream, mimetype) {
      * be derived through interpolating nearby samples.
      *
      * @private
-     * @param {!Float32Array} audioData
+     * @param {Float32Array} audioData
      *     An array of audio data, as returned by AudioBuffer.getChannelData().
      *
-     * @param {!number} t
+     * @param {Number} t
      *     The relative location within the waveform from which the value
      *     should be retrieved, represented as a floating point number between
      *     0 and 1 inclusive, where 0 represents the earliest point in time and
      *     1 represents the latest.
      *
-     * @returns {!number}
+     * @returns {Number}
      *     The value of the waveform at the given location.
      */
     var interpolateSample = function getValueAt(audioData, t) {
@@ -368,11 +367,11 @@ Guacamole.RawAudioRecorder = function RawAudioRecorder(stream, mimetype) {
      * split into isolated planes of channel-specific data.
      *
      * @private
-     * @param {!AudioBuffer} audioBuffer
+     * @param {AudioBuffer} audioBuffer
      *     The Web Audio API AudioBuffer that should be converted to a raw
      *     audio packet.
      *
-     * @returns {!SampleArray}
+     * @returns {SampleArray}
      *     A new raw audio packet containing the audio data from the provided
      *     AudioBuffer.
      */
@@ -417,7 +416,7 @@ Guacamole.RawAudioRecorder = function RawAudioRecorder(stream, mimetype) {
      * audio stream (successful start of recording).
      *
      * @private
-     * @param {!MediaStream} stream
+     * @param {MediaStream} stream
      *     A MediaStream which provides access to audio data read from the
      *     user's local audio input device.
      */
@@ -559,10 +558,10 @@ Guacamole.RawAudioRecorder.prototype = new Guacamole.AudioRecorder();
  * Determines whether the given mimetype is supported by
  * Guacamole.RawAudioRecorder.
  *
- * @param {!string} mimetype
+ * @param {String} mimetype
  *     The mimetype to check.
  *
- * @returns {!boolean}
+ * @returns {Boolean}
  *     true if the given mimetype is supported by Guacamole.RawAudioRecorder,
  *     false otherwise.
  */
@@ -584,7 +583,7 @@ Guacamole.RawAudioRecorder.isSupportedType = function isSupportedType(mimetype) 
  * additional parameters. Something like "audio/L8;rate=44100" would be valid,
  * however (see https://tools.ietf.org/html/rfc4856).
  *
- * @returns {!string[]}
+ * @returns {String[]}
  *     A list of all mimetypes supported by Guacamole.RawAudioRecorder,
  *     excluding any parameters. If the necessary JavaScript APIs for recording
  *     raw audio are absent, this list will be empty.

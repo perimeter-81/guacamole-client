@@ -36,7 +36,7 @@
         <!-- Include licenses -->
         <fileSet>
             <outputDirectory></outputDirectory>
-            <directory>target/licenses</directory>
+            <directory>src/licenses</directory>
         </fileSet>
 
         <!-- Include extension .jar -->

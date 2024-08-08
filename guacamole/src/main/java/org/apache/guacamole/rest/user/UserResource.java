@@ -21,6 +21,8 @@ package org.apache.guacamole.rest.user;
 
 import com.google.inject.assistedinject.Assisted;
 import com.google.inject.assistedinject.AssistedInject;
+import java.util.ArrayList;
+import java.util.List;
 import javax.servlet.http.HttpServletRequest;
 import javax.ws.rs.Consumes;
 import javax.ws.rs.GET;
@@ -31,22 +33,19 @@ import javax.ws.rs.core.Context;
 import javax.ws.rs.core.MediaType;
 import org.apache.guacamole.GuacamoleException;
 import org.apache.guacamole.GuacamoleSecurityException;
-import org.apache.guacamole.GuacamoleUnsupportedException;
+import org.apache.guacamole.net.auth.ActivityRecord;
 import org.apache.guacamole.net.auth.AuthenticationProvider;
 import org.apache.guacamole.net.auth.Credentials;
 import org.apache.guacamole.net.auth.User;
 import org.apache.guacamole.net.auth.Directory;
 import org.apache.guacamole.net.auth.UserContext;
 import org.apache.guacamole.net.auth.credentials.GuacamoleCredentialsException;
-import org.apache.guacamole.net.auth.simple.SimpleActivityRecordSet;
 import org.apache.guacamole.rest.directory.DirectoryObjectResource;
 import org.apache.guacamole.rest.directory.DirectoryObjectTranslator;
-import org.apache.guacamole.rest.history.UserHistoryResource;
+import org.apache.guacamole.rest.history.APIActivityRecord;
 import org.apache.guacamole.rest.identifier.RelatedObjectSetResource;
 import org.apache.guacamole.rest.permission.APIPermissionSet;
 import org.apache.guacamole.rest.permission.PermissionSetResource;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 /**
  * A REST resource which abstracts the operations available on an existing
@@ -57,11 +56,6 @@ import org.slf4j.LoggerFactory;
 public class UserResource
         extends DirectoryObjectResource<User, APIUser> {
 
-    /**
-     * Logger for this class.
-     */
-    private static final Logger logger = LoggerFactory.getLogger(UserResource.class);
-    
     /**
      * The UserContext associated with the Directory which contains the User
      * exposed by this resource.
@@ -116,29 +110,18 @@ public class UserResource
      * @throws GuacamoleException
      *     If an error occurs while retrieving the user history.
      */
-    @SuppressWarnings("deprecation")
+    @GET
     @Path("history")
-    public UserHistoryResource getUserHistory()
+    public List<APIActivityRecord> getUserHistory()
             throws GuacamoleException {
 
-        // First try to retrieve history using the current getUserHistory() method.
-        try {
-            return new UserHistoryResource(user.getUserHistory());
-        }
-        catch (GuacamoleUnsupportedException e) {
-            logger.debug("Call to getUserHistory() is unsupported, falling back to deprecated method getHistory().", e);
-        }
-        
-        // Fall back to deprecated getHistory() method.
-        try {
-            return new UserHistoryResource(new SimpleActivityRecordSet<>(user.getHistory()));
-        }
-        catch (GuacamoleUnsupportedException e) {
-            logger.debug("Call to getHistory() is unsupported, no user history records will be returned.", e);
-        }
-        
-        // If both are unimplemented, return an empty history set.
-        return new UserHistoryResource(new SimpleActivityRecordSet<>());
+        // Retrieve the requested user's history
+        List<APIActivityRecord> apiRecords = new ArrayList<APIActivityRecord>();
+        for (ActivityRecord record : user.getHistory())
+            apiRecords.add(new APIActivityRecord(record));
+
+        // Return the converted history
+        return apiRecords;
 
     }
 

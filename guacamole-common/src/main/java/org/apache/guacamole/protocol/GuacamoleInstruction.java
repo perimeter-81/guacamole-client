@@ -94,22 +94,6 @@ public class GuacamoleInstruction {
     }
 
     /**
-     * Appends the given value to the provided StringBuilder as a Guacamole
-     * instruction element, including length prefix.
-     *
-     * @param buff
-     *     The StringBuilder to append the element to.
-     *
-     * @param element
-     *     The string value of the element to append.
-     */
-    private static void appendElement(StringBuilder buff, String element) {
-        buff.append(element.codePointCount(0, element.length()));
-        buff.append('.');
-        buff.append(element);
-    }
-
-    /**
      * Returns this GuacamoleInstruction in the form it would be sent over the
      * Guacamole protocol.
      *
@@ -127,12 +111,16 @@ public class GuacamoleInstruction {
             StringBuilder buff = new StringBuilder();
 
             // Write opcode
-            appendElement(buff, opcode);
+            buff.append(opcode.length());
+            buff.append('.');
+            buff.append(opcode);
 
             // Write argument values
             for (String value : args) {
                 buff.append(',');
-                appendElement(buff, value);
+                buff.append(value.length());
+                buff.append('.');
+                buff.append(value);
             }
 
             // Write terminator

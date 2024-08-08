@@ -19,13 +19,12 @@
 
 package org.apache.guacamole.form;
 
-import com.fasterxml.jackson.annotation.JsonInclude;
-import com.fasterxml.jackson.annotation.JsonInclude.Include;
+import org.codehaus.jackson.map.annotate.JsonSerialize;
 
 /**
  * Describes an available legal value for an enumerated field.
  */
-@JsonInclude(value=Include.NON_NULL)
+@JsonSerialize(include=JsonSerialize.Inclusion.NON_NULL)
 public class FieldOption {
 
     /**

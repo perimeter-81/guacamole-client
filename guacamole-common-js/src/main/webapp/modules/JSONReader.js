@@ -35,7 +35,7 @@ Guacamole.JSONReader = function guacamoleJSONReader(stream) {
      * Reference to this Guacamole.JSONReader.
      *
      * @private
-     * @type {!Guacamole.JSONReader}
+     * @type {Guacamole.JSONReader}
      */
     var guacReader = this;
 
@@ -43,7 +43,7 @@ Guacamole.JSONReader = function guacamoleJSONReader(stream) {
      * Wrapped Guacamole.StringReader.
      *
      * @private
-     * @type {!Guacamole.StringReader}
+     * @type {Guacamole.StringReader}
      */
     var stringReader = new Guacamole.StringReader(stream);
 
@@ -51,14 +51,14 @@ Guacamole.JSONReader = function guacamoleJSONReader(stream) {
      * All JSON read thus far.
      *
      * @private
-     * @type {!string}
+     * @type {String}
      */
     var json = '';
 
     /**
      * Returns the current length of this Guacamole.JSONReader, in characters.
      *
-     * @return {!number}
+     * @return {Number}
      *     The current length of this Guacamole.JSONReader.
      */
     this.getLength = function getLength() {
@@ -69,7 +69,7 @@ Guacamole.JSONReader = function guacamoleJSONReader(stream) {
      * Returns the contents of this Guacamole.JSONReader as a JavaScript
      * object.
      *
-     * @return {object}
+     * @return {Object}
      *     The contents of this Guacamole.JSONReader, as parsed from the JSON
      *     contents of the input stream.
      */
@@ -99,7 +99,7 @@ Guacamole.JSONReader = function guacamoleJSONReader(stream) {
      * Fired once for every blob of data received.
      * 
      * @event
-     * @param {!number} length
+     * @param {Number} length
      *     The number of characters received.
      */
     this.onprogress = null;

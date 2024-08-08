@@ -19,18 +19,17 @@
 
 package org.apache.guacamole.rest.user;
 
-import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
-import com.fasterxml.jackson.annotation.JsonInclude;
-import com.fasterxml.jackson.annotation.JsonInclude.Include;
 import java.util.Date;
 import java.util.Map;
+import org.codehaus.jackson.annotate.JsonIgnoreProperties;
+import org.codehaus.jackson.map.annotate.JsonSerialize;
 import org.apache.guacamole.net.auth.User;
 
 /**
  * A simple User to expose through the REST endpoints.
  */
 @JsonIgnoreProperties(ignoreUnknown = true)
-@JsonInclude(value=Include.NON_NULL)
+@JsonSerialize(include=JsonSerialize.Inclusion.NON_NULL)
 public class APIUser {
     
     /**

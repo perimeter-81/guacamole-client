@@ -25,8 +25,6 @@ import java.io.InputStreamReader;
 import java.io.OutputStreamWriter;
 import java.io.Reader;
 import java.io.Writer;
-import java.security.SecureRandom;
-import java.util.Base64;
 import javax.servlet.ServletException;
 import javax.servlet.http.HttpServlet;
 import javax.servlet.http.HttpServletRequest;
@@ -39,6 +37,7 @@ import org.apache.guacamole.GuacamoleServerException;
 import org.apache.guacamole.io.GuacamoleReader;
 import org.apache.guacamole.io.GuacamoleWriter;
 import org.apache.guacamole.net.GuacamoleTunnel;
+import org.apache.guacamole.protocol.GuacamoleStatus;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -54,16 +53,9 @@ public abstract class GuacamoleHTTPTunnelServlet extends HttpServlet {
     private final Logger logger = LoggerFactory.getLogger(GuacamoleHTTPTunnelServlet.class);
 
     /**
-     * Map of absolutely all active tunnels using HTTP, indexed by tunnel
-     * session token.
+     * Map of absolutely all active tunnels using HTTP, indexed by tunnel UUID.
      */
     private final GuacamoleHTTPTunnelMap tunnels = new GuacamoleHTTPTunnelMap();
-
-    /**
-     * The name of the HTTP header that contains the tunnel-specific session
-     * token identifying each active and distinct HTTP tunnel connection.
-     */
-    private static final String TUNNEL_TOKEN_HEADER_NAME = "Guacamole-Tunnel-Token";
 
     /**
      * The prefix of the query string which denotes a tunnel read operation.
@@ -76,64 +68,29 @@ public abstract class GuacamoleHTTPTunnelServlet extends HttpServlet {
     private static final String WRITE_PREFIX = "write:";
 
     /**
-     * Instance of SecureRandom for generating the session token specific to
-     * each distinct HTTP tunnel connection.
+     * The length of the read prefix, in characters.
      */
-    private final SecureRandom secureRandom = new SecureRandom();
+    private static final int READ_PREFIX_LENGTH = READ_PREFIX.length();
 
     /**
-     * Instance of Base64.Encoder for encoding random session tokens as
-     * strings.
+     * The length of the write prefix, in characters.
      */
-    private final Base64.Encoder encoder = Base64.getEncoder();
+    private static final int WRITE_PREFIX_LENGTH = WRITE_PREFIX.length();
 
     /**
-     * Generates a new, securely-random session token that may be used to
-     * represent the ongoing communication session of a distinct HTTP tunnel
-     * connection.
-     *
-     * @return
-     *     A new, securely-random session token.
+     * The length of every tunnel UUID, in characters.
      */
-    protected String generateToken() {
-        byte[] bytes = new byte[33];
-        secureRandom.nextBytes(bytes);
-        return encoder.encodeToString(bytes);
-    }
+    private static final int UUID_LENGTH = 36;
 
     /**
      * Registers the given tunnel such that future read/write requests to that
      * tunnel will be properly directed.
      *
-     * @deprecated
-     *     This function has been deprecated in favor of {@link #registerTunnel(java.lang.String, org.apache.guacamole.net.GuacamoleTunnel)},
-     *     which decouples identification of HTTP tunnel sessions from the
-     *     tunnel UUID.
-     *
      * @param tunnel
      *     The tunnel to register.
      */
-    @Deprecated
     protected void registerTunnel(GuacamoleTunnel tunnel) {
-        registerTunnel(tunnel.getUUID().toString(), tunnel);
-    }
-
-    /**
-     * Registers the given HTTP tunnel such that future read/write requests
-     * including the given tunnel-specific session token will be properly
-     * directed. The session token must be unpredictable (securely-random) and
-     * unique across all active HTTP tunnels. It is recommended that each HTTP
-     * tunnel session token be obtained through calling {@link #generateToken()}.
-     *
-     * @param tunnelSessionToken
-     *     The tunnel-specific session token to associate with the HTTP tunnel
-     *     being registered.
-     *
-     * @param tunnel
-     *     The tunnel to register.
-     */
-    protected void registerTunnel(String tunnelSessionToken, GuacamoleTunnel tunnel) {
-        tunnels.put(tunnelSessionToken, tunnel);
+        tunnels.put(tunnel.getUUID().toString(), tunnel);
         logger.debug("Registered tunnel \"{}\".", tunnel.getUUID());
     }
 
@@ -141,56 +98,33 @@ public abstract class GuacamoleHTTPTunnelServlet extends HttpServlet {
      * Deregisters the given tunnel such that future read/write requests to
      * that tunnel will be rejected.
      *
-     * @deprecated
-     *     This function has been deprecated in favor of {@link #deregisterTunnel(java.lang.String)},
-     *     which decouples identification of HTTP tunnel sessions from the
-     *     tunnel UUID.
-     *
      * @param tunnel
      *     The tunnel to deregister.
      */
-    @Deprecated
     protected void deregisterTunnel(GuacamoleTunnel tunnel) {
-        deregisterTunnel(tunnel.getUUID().toString());
+        tunnels.remove(tunnel.getUUID().toString());
+        logger.debug("Deregistered tunnel \"{}\".", tunnel.getUUID());
     }
 
     /**
-     * Deregisters the HTTP tunnel associated with the given tunnel-specific
-     * session token such that future read/write requests to that tunnel will
-     * be rejected. Each HTTP tunnel must be associated with a session token
-     * unique to that tunnel via a call {@link #registerTunnel(java.lang.String, org.apache.guacamole.net.GuacamoleTunnel)}.
-     * 
-     * @param tunnelSessionToken
-     *     The tunnel-specific session token associated with the HTTP tunnel
-     *     being deregistered.
-     */
-    protected void deregisterTunnel(String tunnelSessionToken) {
-        GuacamoleTunnel tunnel = tunnels.remove(tunnelSessionToken);
-        if (tunnel != null)
-            logger.debug("Deregistered tunnel \"{}\".", tunnel.getUUID());
-    }
-
-    /**
-     * Returns the tunnel associated with the given tunnel-specific session
-     * token, if it has been registered with {@link #registerTunnel(java.lang.String, org.apache.guacamole.net.GuacamoleTunnel)}
-     * and not yet deregistered with {@link #deregisterTunnel(java.lang.String)}.
+     * Returns the tunnel with the given UUID, if it has been registered with
+     * registerTunnel() and not yet deregistered with deregisterTunnel().
      *
-     * @param tunnelSessionToken
-     *     The tunnel-specific session token associated with the HTTP tunnel to
-     *     be retrieved.
+     * @param tunnelUUID
+     *     The UUID of registered tunnel.
      *
      * @return
-     *     The tunnel corresponding to the given session token.
+     *     The tunnel corresponding to the given UUID.
      *
      * @throws GuacamoleException
      *     If the requested tunnel does not exist because it has not yet been
      *     registered or it has been deregistered.
      */
-    protected GuacamoleTunnel getTunnel(String tunnelSessionToken)
+    protected GuacamoleTunnel getTunnel(String tunnelUUID)
             throws GuacamoleException {
 
         // Pull tunnel from map
-        GuacamoleTunnel tunnel = tunnels.get(tunnelSessionToken);
+        GuacamoleTunnel tunnel = tunnels.get(tunnelUUID);
         if (tunnel == null)
             throw new GuacamoleResourceNotFoundException("No such tunnel.");
 
@@ -275,54 +209,52 @@ public abstract class GuacamoleHTTPTunnelServlet extends HttpServlet {
             if (query == null)
                 throw new GuacamoleClientException("No query string provided.");
 
-            // If connect operation, call doConnect() and return tunnel
-            // session token and UUID in response
+            // If connect operation, call doConnect() and return tunnel UUID
+            // in response.
             if (query.equals("connect")) {
 
                 GuacamoleTunnel tunnel = doConnect(request);
-                if (tunnel == null)
+                if (tunnel != null) {
+
+                    // Register newly-created tunnel
+                    registerTunnel(tunnel);
+
+                    try {
+                        // Ensure buggy browsers do not cache response
+                        response.setHeader("Cache-Control", "no-cache");
+
+                        // Send UUID to client
+                        response.getWriter().print(tunnel.getUUID().toString());
+                    }
+                    catch (IOException e) {
+                        throw new GuacamoleServerException(e);
+                    }
+
+                }
+
+                // Failed to connect
+                else
                     throw new GuacamoleResourceNotFoundException("No tunnel created.");
-
-                // Register newly-created tunnel
-                String tunnelSessionToken = generateToken();
-                registerTunnel(tunnelSessionToken, tunnel);
-
-                try {
-                    // Ensure buggy browsers do not cache response
-                    response.setHeader("Cache-Control", "no-cache");
-
-                    // Include tunnel session token for future requests
-                    response.setHeader(TUNNEL_TOKEN_HEADER_NAME, tunnelSessionToken);
-                    
-                    // Send UUID to client
-                    response.getWriter().print(tunnel.getUUID().toString());
-                }
-                catch (IOException e) {
-                    throw new GuacamoleServerException(e);
-                }
-
-                // Connection successful
-                return;
 
             }
 
-            // Pull tunnel-specific session token from request
-            String tunnelSessionToken = request.getHeader(TUNNEL_TOKEN_HEADER_NAME);
-            if (tunnelSessionToken == null)
-                throw new GuacamoleClientException("The HTTP tunnel session "
-                        + "token is required for all requests after "
-                        + "connecting.");
+            // If read operation, call doRead() with tunnel UUID, ignoring any
+            // characters following the tunnel UUID.
+            else if (query.startsWith(READ_PREFIX))
+                doRead(request, response, query.substring(
+                        READ_PREFIX_LENGTH,
+                        READ_PREFIX_LENGTH + UUID_LENGTH));
 
-            // Dispatch valid tunnel read/write operations
-            if (query.startsWith(READ_PREFIX))
-                doRead(request, response, tunnelSessionToken);
+            // If write operation, call doWrite() with tunnel UUID, ignoring any
+            // characters following the tunnel UUID.
             else if (query.startsWith(WRITE_PREFIX))
-                doWrite(request, response, tunnelSessionToken);
+                doWrite(request, response, query.substring(
+                        WRITE_PREFIX_LENGTH,
+                        WRITE_PREFIX_LENGTH + UUID_LENGTH));
 
             // Otherwise, invalid operation
             else
                 throw new GuacamoleClientException("Invalid tunnel operation: " + query);
-
         }
 
         // Catch any thrown guacamole exception and attempt to pass within the
@@ -376,20 +308,20 @@ public abstract class GuacamoleHTTPTunnelServlet extends HttpServlet {
      *     Any data to be sent to the client in response to the write request
      *     should be written to the response body of this HttpServletResponse.
      *
-     * @param tunnelSessionToken
-     *     The tunnel-specific session token of the HTTP tunnel to read from,
-     *     as specified in the read request. This tunnel must have been created
-     *     by a previous call to doConnect().
+     * @param tunnelUUID
+     *     The UUID of the tunnel to read from, as specified in the write
+     *     request. This tunnel must have been created by a previous call to
+     *     doConnect().
      *
      * @throws GuacamoleException
      *     If an error occurs while handling the read request.
      */
     protected void doRead(HttpServletRequest request,
-            HttpServletResponse response, String tunnelSessionToken)
+            HttpServletResponse response, String tunnelUUID)
             throws GuacamoleException {
 
         // Get tunnel, ensure tunnel exists
-        GuacamoleTunnel tunnel = getTunnel(tunnelSessionToken);
+        GuacamoleTunnel tunnel = getTunnel(tunnelUUID);
 
         // Ensure tunnel is open
         if (!tunnel.isOpen())
@@ -439,7 +371,7 @@ public abstract class GuacamoleHTTPTunnelServlet extends HttpServlet {
 
                 // Close tunnel immediately upon EOF
                 if (message == null) {
-                    deregisterTunnel(tunnelSessionToken);
+                    deregisterTunnel(tunnel);
                     tunnel.close();
                 }
 
@@ -453,7 +385,7 @@ public abstract class GuacamoleHTTPTunnelServlet extends HttpServlet {
             catch (GuacamoleConnectionClosedException e) {
 
                 // Deregister and close
-                deregisterTunnel(tunnelSessionToken);
+                deregisterTunnel(tunnel);
                 tunnel.close();
 
                 // End-of-instructions marker
@@ -466,7 +398,7 @@ public abstract class GuacamoleHTTPTunnelServlet extends HttpServlet {
             catch (GuacamoleException e) {
 
                 // Deregister and close
-                deregisterTunnel(tunnelSessionToken);
+                deregisterTunnel(tunnel);
                 tunnel.close();
 
                 throw e;
@@ -484,7 +416,7 @@ public abstract class GuacamoleHTTPTunnelServlet extends HttpServlet {
             logger.debug("Error writing to servlet output stream", e);
 
             // Deregister and close
-            deregisterTunnel(tunnelSessionToken);
+            deregisterTunnel(tunnel);
             tunnel.close();
 
         }
@@ -507,19 +439,19 @@ public abstract class GuacamoleHTTPTunnelServlet extends HttpServlet {
      * @param response
      *     The HttpServletResponse associated with the write request received.
      *
-     * @param tunnelSessionToken
-     *     The tunnel-specific session token of the HTTP tunnel to write to,
-     *     as specified in the write request. This tunnel must have been created
-     *     by a previous call to doConnect().
+     * @param tunnelUUID
+     *     The UUID of the tunnel to write to, as specified in the write
+     *     request. This tunnel must have been created by a previous call to
+     *     doConnect().
      *
      * @throws GuacamoleException
      *     If an error occurs while handling the write request.
      */
     protected void doWrite(HttpServletRequest request,
-            HttpServletResponse response, String tunnelSessionToken)
+            HttpServletResponse response, String tunnelUUID)
             throws GuacamoleException {
 
-        GuacamoleTunnel tunnel = getTunnel(tunnelSessionToken);
+        GuacamoleTunnel tunnel = getTunnel(tunnelUUID);
 
         // We still need to set the content type to avoid the default of
         // text/html, as such a content type would cause some browsers to
@@ -566,7 +498,7 @@ public abstract class GuacamoleHTTPTunnelServlet extends HttpServlet {
         catch (IOException e) {
 
             // Deregister and close
-            deregisterTunnel(tunnelSessionToken);
+            deregisterTunnel(tunnel);
             tunnel.close();
 
             throw new GuacamoleServerException("I/O Error sending data to server: " + e.getMessage(), e);

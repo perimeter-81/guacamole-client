@@ -291,7 +291,7 @@ public class ModeledUserContext extends RestrictedObject
         // Record logout time only if login time was recorded
         if (userRecord != null) {
             userRecord.setEndDate(new Date());
-            userRecordMapper.updateEndDate(userRecord);
+            userRecordMapper.update(userRecord);
         }
 
     }

@@ -49,19 +49,6 @@ public class PostgreSQLEnvironment extends JDBCEnvironment {
     private static final int DEFAULT_PORT = 5432;
 
     /**
-     * The default number of seconds the driver will wait for a response from
-     * the database, before aborting the query.
-     * A value of 0 (the default) means the timeout is disabled.
-     */
-    private static final int DEFAULT_STATEMENT_TIMEOUT = 0;
-
-    /**
-     * The default number of seconds to wait for socket read operations.
-     * A value of 0 (the default) means the timeout is disabled.
-     */
-    private static final int DEFAULT_SOCKET_TIMEOUT = 0;
-
-    /**
      * Whether a database user account is required by default for authentication
      * to succeed.
      */
@@ -81,7 +68,7 @@ public class PostgreSQLEnvironment extends JDBCEnvironment {
      * dictate the values that should be used in the absence of the correct
      * properties.
      */
-    private final int DEFAULT_MAX_CONNECTIONS_PER_USER = 0;
+    private final int DEFAULT_MAX_CONNECTIONS_PER_USER = 1;
 
     /**
      * The default value for the default maximum number of connections to be
@@ -115,18 +102,6 @@ public class PostgreSQLEnvironment extends JDBCEnvironment {
      * The default value to use for SSL mode if none is explicitly configured.
      */
     private final PostgreSQLSSLMode DEFAULT_SSL_MODE = PostgreSQLSSLMode.PREFER;
-    
-    /**
-     * The default maximum number of identifiers/parameters to be included in a 
-     * single batch when executing SQL statements for PostgreSQL.
-     * 
-     * PostgreSQL has a maximum limit of 65535 parameters per prepared statement.
-     * A value of 5000 is chosen to avoid potential performance issues or query
-     * execution errors while staying well below the maximum limit.
-     *
-     * @see https://www.postgresql.org/docs/current/runtime-config-resource.html#GUC-MAX-PREPARED-STATEMENT-ARGS
-     */
-    private static final int DEFAULT_BATCH_SIZE = 5000;
 
     /**
      * Constructs a new PostgreSQLEnvironment, providing access to PostgreSQL-specific
@@ -158,13 +133,6 @@ public class PostgreSQLEnvironment extends JDBCEnvironment {
         );
     }
 
-    @Override
-    public int getBatchSize() throws GuacamoleException {
-        return getProperty(PostgreSQLGuacamoleProperties.POSTGRESQL_BATCH_SIZE,
-            DEFAULT_BATCH_SIZE
-        );
-    }    
-    
     @Override
     public int getDefaultMaxConnections() throws GuacamoleException {
         return getProperty(
@@ -251,50 +219,35 @@ public class PostgreSQLEnvironment extends JDBCEnvironment {
     public String getPostgreSQLDatabase() throws GuacamoleException {
         return getRequiredProperty(PostgreSQLGuacamoleProperties.POSTGRESQL_DATABASE);
     }
-
-    @Override
-    public String getUsername() throws GuacamoleException {
+    
+    /**
+     * Returns the username that should be used when authenticating with the
+     * PostgreSQL database containing the Guacamole authentication tables.
+     * 
+     * @return
+     *     The username for the PostgreSQL database.
+     *
+     * @throws GuacamoleException 
+     *     If an error occurs while retrieving the property value, or if the
+     *     value was not set, as this property is required.
+     */
+    public String getPostgreSQLUsername() throws GuacamoleException {
         return getRequiredProperty(PostgreSQLGuacamoleProperties.POSTGRESQL_USERNAME);
     }
-
-    @Override
-    public String getPassword() throws GuacamoleException {
+    
+    /**
+     * Returns the password that should be used when authenticating with the
+     * PostgreSQL database containing the Guacamole authentication tables.
+     * 
+     * @return
+     *     The password for the PostgreSQL database.
+     *
+     * @throws GuacamoleException 
+     *     If an error occurs while retrieving the property value, or if the
+     *     value was not set, as this property is required.
+     */
+    public String getPostgreSQLPassword() throws GuacamoleException {
         return getRequiredProperty(PostgreSQLGuacamoleProperties.POSTGRESQL_PASSWORD);
-    }
-    
-    /**
-     * Returns the defaultStatementTimeout set for PostgreSQL connections.
-     * If unspecified, this will default to 0,
-     * and should not be passed through to the backend.
-     * 
-     * @return
-     *     The statement timeout (in seconds)
-     *
-     * @throws GuacamoleException 
-     *     If an error occurs while retrieving the property value.
-     */
-    public int getPostgreSQLDefaultStatementTimeout() throws GuacamoleException {
-        return getProperty(
-            PostgreSQLGuacamoleProperties.POSTGRESQL_DEFAULT_STATEMENT_TIMEOUT,
-            DEFAULT_STATEMENT_TIMEOUT
-        );
-    }
-    
-    /**
-     * Returns the socketTimeout property to set on PostgreSQL connections.
-     * If unspecified, this will default to 0 (no timeout)
-     * 
-     * @return
-     *     The socketTimeout to use when waiting on read operations (in seconds)
-     *
-     * @throws GuacamoleException 
-     *     If an error occurs while retrieving the property value.
-     */
-    public int getPostgreSQLSocketTimeout() throws GuacamoleException {
-        return getProperty(
-            PostgreSQLGuacamoleProperties.POSTGRESQL_SOCKET_TIMEOUT,
-            DEFAULT_SOCKET_TIMEOUT
-        );
     }
 
     @Override

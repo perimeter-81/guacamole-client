@@ -25,6 +25,6 @@ var Guacamole = Guacamole || {};
  * used in downstream applications as a sanity check that the proper version
  * of the APIs is being used (in case an older version is cached, for example).
  *
- * @type {!string}
+ * @type {String}
  */
-Guacamole.API_VERSION = "1.5.4";
+Guacamole.API_VERSION = "1.2.0";

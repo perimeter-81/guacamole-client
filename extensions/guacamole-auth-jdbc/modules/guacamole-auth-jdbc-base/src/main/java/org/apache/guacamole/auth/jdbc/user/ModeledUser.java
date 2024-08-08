@@ -30,6 +30,7 @@ import java.util.Calendar;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.TimeZone;
@@ -46,7 +47,6 @@ import org.apache.guacamole.form.TextField;
 import org.apache.guacamole.form.TimeField;
 import org.apache.guacamole.form.TimeZoneField;
 import org.apache.guacamole.net.auth.ActivityRecord;
-import org.apache.guacamole.net.auth.ActivityRecordSet;
 import org.apache.guacamole.net.auth.Permissions;
 import org.apache.guacamole.net.auth.RelatedObjectSet;
 import org.apache.guacamole.net.auth.User;
@@ -138,7 +138,7 @@ public class ModeledUser extends ModeledPermissions<UserModel> implements User {
         PROFILE,
         ACCOUNT_RESTRICTIONS
     ));
-    
+
     /**
      * The names of all attributes which are explicitly supported by this
      * extension's User objects.
@@ -182,12 +182,6 @@ public class ModeledUser extends ModeledPermissions<UserModel> implements User {
      */
     @Inject
     private Provider<UserParentUserGroupSet> parentUserGroupSetProvider;
-    
-    /**
-     * Provider for creating user record sets.
-     */
-    @Inject
-    private Provider<UserRecordSet> userRecordSetProvider;
 
     /**
      * Whether attributes which control access restrictions should be exposed
@@ -425,52 +419,41 @@ public class ModeledUser extends ModeledPermissions<UserModel> implements User {
     private void setRestrictedAttributes(Map<String, String> attributes) {
 
         // Translate disabled attribute
-        if (attributes.containsKey(DISABLED_ATTRIBUTE_NAME))
-            getModel().setDisabled("true".equals(attributes.get(DISABLED_ATTRIBUTE_NAME)));
+        getModel().setDisabled("true".equals(attributes.get(DISABLED_ATTRIBUTE_NAME)));
 
         // Translate password expired attribute
-        if (attributes.containsKey(EXPIRED_ATTRIBUTE_NAME))
-            getModel().setExpired("true".equals(attributes.get(EXPIRED_ATTRIBUTE_NAME)));
+        getModel().setExpired("true".equals(attributes.get(EXPIRED_ATTRIBUTE_NAME)));
 
         // Translate access window start time
-        if (attributes.containsKey(ACCESS_WINDOW_START_ATTRIBUTE_NAME)) {
-            try { getModel().setAccessWindowStart(parseTime(attributes.get(ACCESS_WINDOW_START_ATTRIBUTE_NAME))); }
-            catch (ParseException e) {
-                logger.warn("Not setting start time of user access window: {}", e.getMessage());
-                logger.debug("Unable to parse time attribute.", e);
-            }
+        try { getModel().setAccessWindowStart(parseTime(attributes.get(ACCESS_WINDOW_START_ATTRIBUTE_NAME))); }
+        catch (ParseException e) {
+            logger.warn("Not setting start time of user access window: {}", e.getMessage());
+            logger.debug("Unable to parse time attribute.", e);
         }
 
         // Translate access window end time
-        if (attributes.containsKey(ACCESS_WINDOW_END_ATTRIBUTE_NAME)) {
-            try { getModel().setAccessWindowEnd(parseTime(attributes.get(ACCESS_WINDOW_END_ATTRIBUTE_NAME))); }
-            catch (ParseException e) {
-                logger.warn("Not setting end time of user access window: {}", e.getMessage());
-                logger.debug("Unable to parse time attribute.", e);
-            }
+        try { getModel().setAccessWindowEnd(parseTime(attributes.get(ACCESS_WINDOW_END_ATTRIBUTE_NAME))); }
+        catch (ParseException e) {
+            logger.warn("Not setting end time of user access window: {}", e.getMessage());
+            logger.debug("Unable to parse time attribute.", e);
         }
 
         // Translate account validity start date
-        if (attributes.containsKey(VALID_FROM_ATTRIBUTE_NAME)) {
-            try { getModel().setValidFrom(parseDate(attributes.get(VALID_FROM_ATTRIBUTE_NAME))); }
-            catch (ParseException e) {
-                logger.warn("Not setting user validity start date: {}", e.getMessage());
-                logger.debug("Unable to parse date attribute.", e);
-            }
+        try { getModel().setValidFrom(parseDate(attributes.get(VALID_FROM_ATTRIBUTE_NAME))); }
+        catch (ParseException e) {
+            logger.warn("Not setting user validity start date: {}", e.getMessage());
+            logger.debug("Unable to parse date attribute.", e);
         }
 
         // Translate account validity end date
-        if (attributes.containsKey(VALID_UNTIL_ATTRIBUTE_NAME)) {
-            try { getModel().setValidUntil(parseDate(attributes.get(VALID_UNTIL_ATTRIBUTE_NAME))); }
-            catch (ParseException e) {
-                logger.warn("Not setting user validity end date: {}", e.getMessage());
-                logger.debug("Unable to parse date attribute.", e);
-            }
+        try { getModel().setValidUntil(parseDate(attributes.get(VALID_UNTIL_ATTRIBUTE_NAME))); }
+        catch (ParseException e) {
+            logger.warn("Not setting user validity end date: {}", e.getMessage());
+            logger.debug("Unable to parse date attribute.", e);
         }
 
         // Translate timezone attribute
-        if (attributes.containsKey(TIMEZONE_ATTRIBUTE_NAME))
-            getModel().setTimeZone(TimeZoneField.parse(attributes.get(TIMEZONE_ATTRIBUTE_NAME)));
+        getModel().setTimeZone(TimeZoneField.parse(attributes.get(TIMEZONE_ATTRIBUTE_NAME)));
 
     }
 
@@ -484,20 +467,16 @@ public class ModeledUser extends ModeledPermissions<UserModel> implements User {
     private void setUnrestrictedAttributes(Map<String, String> attributes) {
 
         // Translate full name attribute
-        if (attributes.containsKey(User.Attribute.FULL_NAME))
-            getModel().setFullName(TextField.parse(attributes.get(User.Attribute.FULL_NAME)));
+        getModel().setFullName(TextField.parse(attributes.get(User.Attribute.FULL_NAME)));
 
         // Translate email address attribute
-        if (attributes.containsKey(User.Attribute.EMAIL_ADDRESS))
-            getModel().setEmailAddress(TextField.parse(attributes.get(User.Attribute.EMAIL_ADDRESS)));
+        getModel().setEmailAddress(TextField.parse(attributes.get(User.Attribute.EMAIL_ADDRESS)));
 
         // Translate organization attribute
-        if (attributes.containsKey(User.Attribute.ORGANIZATION))
-            getModel().setOrganization(TextField.parse(attributes.get(User.Attribute.ORGANIZATION)));
+        getModel().setOrganization(TextField.parse(attributes.get(User.Attribute.ORGANIZATION)));
 
         // Translate role attribute
-        if (attributes.containsKey(User.Attribute.ORGANIZATIONAL_ROLE))
-            getModel().setOrganizationalRole(TextField.parse(attributes.get(User.Attribute.ORGANIZATIONAL_ROLE)));
+        getModel().setOrganizationalRole(TextField.parse(attributes.get(User.Attribute.ORGANIZATIONAL_ROLE)));
 
     }
 
@@ -769,11 +748,8 @@ public class ModeledUser extends ModeledPermissions<UserModel> implements User {
     }
 
     @Override
-    public ActivityRecordSet<ActivityRecord> getUserHistory()
-            throws GuacamoleException {
-        UserRecordSet userRecordSet = userRecordSetProvider.get();
-        userRecordSet.init(getCurrentUser(), this.getIdentifier());
-        return userRecordSet;
+    public List<ActivityRecord> getHistory() throws GuacamoleException {
+        return userService.retrieveHistory(getCurrentUser(), this);
     }
 
     @Override

@@ -19,12 +19,11 @@
 
 package org.apache.guacamole.rest.connection;
 
-import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
-import com.fasterxml.jackson.annotation.JsonInclude;
-import com.fasterxml.jackson.annotation.JsonInclude.Include;
 import java.util.Collection;
 import java.util.Date;
 import java.util.Map;
+import org.codehaus.jackson.annotate.JsonIgnoreProperties;
+import org.codehaus.jackson.map.annotate.JsonSerialize;
 import org.apache.guacamole.GuacamoleException;
 import org.apache.guacamole.net.auth.Connection;
 import org.apache.guacamole.protocol.GuacamoleConfiguration;
@@ -34,7 +33,7 @@ import org.apache.guacamole.rest.sharingprofile.APISharingProfile;
  * A simple connection to expose through the REST endpoints.
  */
 @JsonIgnoreProperties(ignoreUnknown = true)
-@JsonInclude(value=Include.NON_NULL)
+@JsonSerialize(include=JsonSerialize.Inclusion.NON_NULL)
 public class APIConnection {
 
     /**

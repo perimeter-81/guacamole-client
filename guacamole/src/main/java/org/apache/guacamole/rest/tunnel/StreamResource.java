@@ -31,7 +31,6 @@ import javax.ws.rs.core.Response;
 import javax.ws.rs.core.Response.ResponseBuilder;
 import javax.ws.rs.core.StreamingOutput;
 import org.apache.guacamole.GuacamoleException;
-import org.apache.guacamole.rest.RequestSizeFilter;
 import org.apache.guacamole.tunnel.StreamInterceptingTunnel;
 
 /**
@@ -128,7 +127,6 @@ public class StreamResource {
      */
     @POST
     @Consumes(MediaType.WILDCARD)
-    @RequestSizeFilter.DoNotLimit
     public void setStreamContents(InputStream data) throws GuacamoleException {
 
         // Send input over stream

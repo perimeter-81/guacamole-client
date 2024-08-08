@@ -24,40 +24,33 @@ var Guacamole = Guacamole || {};
  * data.
  * 
  * @constructor
- * @param {!Guacamole.OutputStream} stream
- *     The stream that data will be written to.
+ * @param {Guacamole.OutputStream} stream The stream that data will be written
+ *                                        to.
  */
 Guacamole.StringWriter = function(stream) {
 
     /**
      * Reference to this Guacamole.StringWriter.
-     *
      * @private
-     * @type {!Guacamole.StringWriter}
      */
     var guac_writer = this;
 
     /**
      * Wrapped Guacamole.ArrayBufferWriter.
-     *
      * @private
-     * @type {!Guacamole.ArrayBufferWriter}
+     * @type {Guacamole.ArrayBufferWriter}
      */
     var array_writer = new Guacamole.ArrayBufferWriter(stream);
 
     /**
      * Internal buffer for UTF-8 output.
-     *
      * @private
-     * @type {!Uint8Array}
      */
     var buffer = new Uint8Array(8192);
 
     /**
      * The number of bytes currently in the buffer.
-     *
      * @private
-     * @type {!number}
      */
     var length = 0;
 
@@ -72,8 +65,8 @@ Guacamole.StringWriter = function(stream) {
      * updating the length appropriately.
      * 
      * @private
-     * @param {!number} bytes
-     *     The number of bytes to add to the underlying buffer.
+     * @param {Number} bytes The number of bytes to add to the underlying
+     *                       buffer.
      */
     function __expand(bytes) {
 
@@ -93,8 +86,8 @@ Guacamole.StringWriter = function(stream) {
      * buffer if necessary. The character will be encoded as UTF-8.
      * 
      * @private
-     * @param {!number} codepoint
-     *     The codepoint of the Unicode character to append.
+     * @param {Number} codepoint The codepoint of the Unicode character to
+     *                           append.
      */
     function __append_utf8(codepoint) {
 
@@ -151,11 +144,8 @@ Guacamole.StringWriter = function(stream) {
      * the resulting bytes.
      * 
      * @private
-     * @param {!string} text
-     *     The string to encode as UTF-8.
-     *
-     * @return {!Uint8Array}
-     *     The encoded UTF-8 data.
+     * @param {String} text The string to encode as UTF-8.
+     * @return {Uint8Array} The encoded UTF-8 data.
      */
     function __encode_utf8(text) {
 
@@ -177,8 +167,7 @@ Guacamole.StringWriter = function(stream) {
     /**
      * Sends the given text.
      * 
-     * @param {!string} text
-     *     The text to send.
+     * @param {String} text The text to send.
      */
     this.sendText = function(text) {
         if (text.length)
@@ -195,10 +184,8 @@ Guacamole.StringWriter = function(stream) {
 
     /**
      * Fired for received data, if acknowledged by the server.
-     *
      * @event
-     * @param {!Guacamole.Status} status
-     *     The status of the operation.
+     * @param {Guacamole.Status} status The status of the operation.
      */
     this.onack = null;
 

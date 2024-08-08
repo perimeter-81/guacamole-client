@@ -171,7 +171,7 @@ public class SchemaResource {
     public Map<String, ProtocolInfo> getProtocols() throws GuacamoleException {
 
         // Get and return a map of all protocols.
-        Environment env = LocalEnvironment.getInstance();
+        Environment env = new LocalEnvironment();
         return env.getProtocols();
 
     }

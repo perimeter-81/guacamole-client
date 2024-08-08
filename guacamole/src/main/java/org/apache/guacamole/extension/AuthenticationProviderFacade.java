@@ -21,12 +21,12 @@ package org.apache.guacamole.extension;
 
 import java.util.Set;
 import java.util.UUID;
-import org.apache.guacamole.GuacamoleClientException;
 import org.apache.guacamole.GuacamoleException;
 import org.apache.guacamole.net.auth.AuthenticatedUser;
 import org.apache.guacamole.net.auth.AuthenticationProvider;
 import org.apache.guacamole.net.auth.Credentials;
 import org.apache.guacamole.net.auth.UserContext;
+import org.apache.guacamole.net.auth.credentials.GuacamoleCredentialsException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -190,15 +190,41 @@ public class AuthenticationProviderFacade implements AuthenticationProvider {
             return authProvider.authenticateUser(credentials);
         }
 
-        // Pass through client exceptions untouched, including credential
-        // exceptions, as these are not internal failures
-        catch (GuacamoleClientException e) {
+        // Pass through credential exceptions untouched, as these are not
+        // internal failures
+        catch (GuacamoleCredentialsException e) {
             throw e;
         }
 
         // Pass through all other exceptions (aborting authentication entirely)
         // only if not configured to ignore such failures
-        catch (GuacamoleException | RuntimeException | Error e) {
+        catch (GuacamoleException e) {
+
+            // Skip using this authentication provider if configured to ignore
+            // internal failures during auth
+            if (isFailureTolerated()) {
+                warnAuthProviderSkipped(e);
+                return null;
+            }
+
+            warnAuthAborted();
+            throw e;
+
+        }
+        catch (RuntimeException e) {
+
+            // Skip using this authentication provider if configured to ignore
+            // internal failures during auth
+            if (isFailureTolerated()) {
+                warnAuthProviderSkipped(e);
+                return null;
+            }
+
+            warnAuthAborted();
+            throw e;
+
+        }
+        catch (Error e) {
 
             // Skip using this authentication provider if configured to ignore
             // internal failures during auth
@@ -248,15 +274,41 @@ public class AuthenticationProviderFacade implements AuthenticationProvider {
             return authProvider.getUserContext(authenticatedUser);
         }
 
-        // Pass through client exceptions untouched, including credential
-        // exceptions, as these are not internal failures
-        catch (GuacamoleClientException e) {
+        // Pass through credential exceptions untouched, as these are not
+        // internal failures
+        catch (GuacamoleCredentialsException e) {
             throw e;
         }
 
         // Pass through all other exceptions (aborting authentication entirely)
         // only if not configured to ignore such failures
-        catch (GuacamoleException | RuntimeException | Error e) {
+        catch (GuacamoleException e) {
+
+            // Skip using this authentication provider if configured to ignore
+            // internal failures during auth
+            if (isFailureTolerated()) {
+                warnAuthProviderSkipped(e);
+                return null;
+            }
+
+            warnAuthAborted();
+            throw e;
+
+        }
+        catch (RuntimeException e) {
+
+            // Skip using this authentication provider if configured to ignore
+            // internal failures during auth
+            if (isFailureTolerated()) {
+                warnAuthProviderSkipped(e);
+                return null;
+            }
+
+            warnAuthAborted();
+            throw e;
+
+        }
+        catch (Error e) {
 
             // Skip using this authentication provider if configured to ignore
             // internal failures during auth

@@ -121,7 +121,7 @@ public class UserGroupService extends ModeledDirectoryObjectService<ModeledUserG
 
         // Return whether user has explicit user group creation permission
         SystemPermissionSet permissionSet = user.getUser().getEffectivePermissions().getSystemPermissions();
-        return permissionSet.hasPermission(SystemPermission.Type.CREATE_USER_GROUP);
+        return permissionSet.hasPermission(SystemPermission.Type.CREATE_USER);
 
     }
 

@@ -60,7 +60,7 @@ public class LDAPAuthenticationProviderModule extends AbstractModule {
             throws GuacamoleException {
 
         // Get local environment
-        this.environment = LocalEnvironment.getInstance();
+        this.environment = new LocalEnvironment();
 
         // Store associated auth provider
         this.authProvider = authProvider;

@@ -34,37 +34,13 @@ public enum GuacamoleProtocolCapability {
     ARBITRARY_HANDSHAKE_ORDER(GuacamoleProtocolVersion.VERSION_1_1_0),
     
     /**
-     * Support for the "msg" instruction. The "msg" instruction allows the
-     * server to send messages to the client. Support for this instruction was
-     * introduced in {@link GuacamoleProtocolVersion#VERSION_1_5_0}.
-     */
-    MSG_INSTRUCTION(GuacamoleProtocolVersion.VERSION_1_5_0),
-    
-    /**
-     * Support for the "name" handshake instruction, allowing clients to send
-     * the name of the Guacamole user to be passed to guacd and associated with
-     * connections. Support for this instruction was introduced in
-     * {@link GuacamoleProtocolVersion#VERSION_1_5_0}.
-     */
-    NAME_HANDSHAKE(GuacamoleProtocolVersion.VERSION_1_5_0),
-    
-    /**
      * Negotiation of Guacamole protocol version between client and server
      * during the protocol handshake. The ability to negotiate protocol
      * versions was introduced in
      * {@link GuacamoleProtocolVersion#VERSION_1_1_0}.
      */
     PROTOCOL_VERSION_DETECTION(GuacamoleProtocolVersion.VERSION_1_1_0),
-
-    /**
-     * Support for the "required" instruction. The "required" instruction
-     * allows the server to explicitly request connection parameters from the
-     * client without which the connection cannot continue, such as user
-     * credentials. Support for this instruction was introduced in
-     * {@link GuacamoleProtocolVersion#VERSION_1_3_0}.
-     */
-    REQUIRED_INSTRUCTION(GuacamoleProtocolVersion.VERSION_1_3_0),
-
+    
     /**
      * Support for the "timezone" handshake instruction. The "timezone"
      * instruction allows the client to request that the server forward their

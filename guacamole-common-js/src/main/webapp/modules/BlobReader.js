@@ -26,27 +26,21 @@ var Guacamole = Guacamole || {};
  * given Guacamole.InputStream.
  * 
  * @constructor
- * @param {!Guacamole.InputStream} stream
- *     The stream that data will be read from.
- *
- * @param {!string} mimetype
- *     The mimetype of the blob being built.
+ * @param {Guacamole.InputStream} stream The stream that data will be read
+ *                                       from.
+ * @param {String} mimetype The mimetype of the blob being built.
  */
 Guacamole.BlobReader = function(stream, mimetype) {
 
     /**
      * Reference to this Guacamole.InputStream.
-     *
      * @private
-     * @type {!Guacamole.BlobReader}
      */
     var guac_reader = this;
 
     /**
      * The length of this Guacamole.InputStream in bytes.
-     *
      * @private
-     * @type {!number}
      */
     var length = 0;
 
@@ -103,9 +97,7 @@ Guacamole.BlobReader = function(stream, mimetype) {
 
     /**
      * Returns the current length of this Guacamole.InputStream, in bytes.
-     *
-     * @return {!number}
-     *     The current length of this Guacamole.InputStream.
+     * @return {Number} The current length of this Guacamole.InputStream.
      */
     this.getLength = function() {
         return length;
@@ -113,9 +105,7 @@ Guacamole.BlobReader = function(stream, mimetype) {
 
     /**
      * Returns the contents of this Guacamole.BlobReader as a Blob.
-     *
-     * @return {!Blob}
-     *     The contents of this Guacamole.BlobReader.
+     * @return {Blob} The contents of this Guacamole.BlobReader.
      */
     this.getBlob = function() {
         return blob_builder.getBlob();
@@ -125,8 +115,7 @@ Guacamole.BlobReader = function(stream, mimetype) {
      * Fired once for every blob of data received.
      * 
      * @event
-     * @param {!number} length
-     *     The number of bytes received.
+     * @param {Number} length The number of bytes received.
      */
     this.onprogress = null;
 

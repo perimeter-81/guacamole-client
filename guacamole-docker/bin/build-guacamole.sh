@@ -38,9 +38,15 @@
 ##     subdirectories within this directory, and files will thus be grouped by
 ##     extension type.
 ##
+## @param BUILD_PROFILE
+##     The build profile that will be passed to Maven build process. Defaults
+##     to empty string. Can be set to "lgpl-extensions" to e.g. include
+##     RADIUS authentication extension.
+##
 
 BUILD_DIR="$1"
 DESTINATION="$2"
+BUILD_PROFILE="$3"
 
 #
 # Create destination, if it does not yet exist
@@ -54,11 +60,11 @@ mkdir -p "$DESTINATION"
 
 cd "$BUILD_DIR"
 
-#
-# Run the maven build, applying any arbitrary provided maven arguments.
-#
-
-mvn $MAVEN_ARGUMENTS package
+if [ -z "$BUILD_PROFILE" ]; then
+    mvn package
+else
+    mvn -P "$BUILD_PROFILE" package
+fi
 
 #
 # Copy guacamole.war to destination
@@ -83,7 +89,7 @@ tar -xzf extensions/guacamole-auth-jdbc/modules/guacamole-auth-jdbc-dist/target/
 #
 
 echo "Downloading MySQL Connector/J ..."
-curl -L "https://dev.mysql.com/get/Downloads/Connector-J/mysql-connector-j-$MYSQL_JDBC_VERSION.tar.gz" | \
+curl -L "https://dev.mysql.com/get/Downloads/Connector-J/mysql-connector-java-5.1.46.tar.gz" | \
 tar -xz                        \
     -C "$DESTINATION/mysql/"   \
     --wildcards                \
@@ -97,27 +103,7 @@ tar -xz                        \
 #
 
 echo "Downloading PostgreSQL JDBC driver ..."
-curl -L "https://jdbc.postgresql.org/download/postgresql-$PGSQL_JDBC_VERSION.jar" \
-    > "$DESTINATION/postgresql/postgresql-$PGSQL_JDBC_VERSION.jar"
-
-#
-# Copy SSO auth extensions
-#
-
-tar -xzf extensions/guacamole-auth-sso/modules/guacamole-auth-sso-dist/target/*.tar.gz \
-    -C "$DESTINATION"                                   \
-    --wildcards                                         \
-    --no-anchored                                       \
-    --strip-components=1                                \
-    "*.jar"
-
-#
-# Download SQL Server JDBC driver
-#
-
-echo "Downloading SQL Server JDBC driver ..."
-curl -L "https://github.com/microsoft/mssql-jdbc/releases/download/v$MSSQL_JDBC_VERSION/mssql-jdbc-$MSSQL_JDBC_VERSION.jre8.jar" \
-    > "$DESTINATION/sqlserver/mssql-jdbc-$MSSQL_JDBC_VERSION.jre8.jar"   \
+curl -L "https://jdbc.postgresql.org/download/postgresql-9.4-1201.jdbc41.jar" > "$DESTINATION/postgresql/postgresql-9.4-1201.jdbc41.jar"
 
 #
 # Copy LDAP auth extension and schema modifications
@@ -142,6 +128,15 @@ if [ -f extensions/guacamole-auth-radius/target/guacamole-auth-radius*.jar ]; th
 fi
 
 #
+# Copy OPENID auth extension and schema modifications
+#
+
+if [ -f extensions/guacamole-auth-openid/target/guacamole-auth-openid*.jar ]; then
+    mkdir -p "$DESTINATION/openid"
+    cp extensions/guacamole-auth-openid/target/guacamole-auth-openid*.jar "$DESTINATION/openid"
+fi
+
+#
 # Copy TOTP auth extension if it was built
 #
 
@@ -163,31 +158,4 @@ if [ -f extensions/guacamole-auth-duo/target/*.tar.gz ]; then
         --no-wildcards-match-slash                         \
         --strip-components=1                               \
         "*.jar"
-fi
-
-#
-# Copy header auth extension if it was built
-#
-
-if [ -f extensions/guacamole-auth-header/target/guacamole-auth-header*.jar ]; then
-    mkdir -p "$DESTINATION/header"
-    cp extensions/guacamole-auth-header/target/guacamole-auth-header*.jar "$DESTINATION/header"
-fi
-
-#
-# Copy json auth extension if it was built
-#
-
-if [ -f extensions/guacamole-auth-json/target/guacamole-auth-json*.jar ]; then
-    mkdir -p "$DESTINATION/json"
-    cp extensions/guacamole-auth-json/target/guacamole-auth-json*.jar "$DESTINATION/json"
-fi
-
-#
-# Copy history recording storage extension if it was built
-#
-
-if [ -f extensions/guacamole-history-recording-storage/target/guacamole-history-recording-storage*.jar ]; then
-    mkdir -p "$DESTINATION/recordings"
-    cp extensions/guacamole-history-recording-storage/target/guacamole-history-recording-storage*.jar "$DESTINATION/recordings"
 fi

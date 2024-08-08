@@ -19,11 +19,10 @@
 
 package org.apache.guacamole.auth.jdbc.tunnel;
 
+import com.google.inject.Inject;
 import java.util.Date;
 import java.util.UUID;
-import org.apache.guacamole.auth.jdbc.connection.ConnectionRecordModel;
 import org.apache.guacamole.auth.jdbc.connection.ModeledConnection;
-import org.apache.guacamole.auth.jdbc.connection.ModeledConnectionRecord;
 import org.apache.guacamole.auth.jdbc.connectiongroup.ModeledConnectionGroup;
 import org.apache.guacamole.auth.jdbc.sharing.SharedConnectionMap;
 import org.apache.guacamole.auth.jdbc.sharing.SharedObjectManager;
@@ -32,6 +31,7 @@ import org.apache.guacamole.auth.jdbc.user.RemoteAuthenticatedUser;
 import org.apache.guacamole.net.AbstractGuacamoleTunnel;
 import org.apache.guacamole.net.GuacamoleSocket;
 import org.apache.guacamole.net.GuacamoleTunnel;
+import org.apache.guacamole.net.auth.ConnectionRecord;
 
 
 /**
@@ -39,31 +39,41 @@ import org.apache.guacamole.net.GuacamoleTunnel;
  * the associated connection has not yet ended, getEndDate() will always return
  * null. The associated start date will be the time of this objects creation.
  */
-public class ActiveConnectionRecord extends ModeledConnectionRecord {
+public class ActiveConnectionRecord implements ConnectionRecord {
 
     /**
      * The user that connected to the connection associated with this connection
      * record.
      */
-    private final RemoteAuthenticatedUser user;
+    private RemoteAuthenticatedUser user;
 
     /**
      * The balancing group from which the associated connection was chosen, if
      * any. If no balancing group was used, this will be null.
      */
-    private final ModeledConnectionGroup balancingGroup;
+    private ModeledConnectionGroup balancingGroup;
 
     /**
      * The connection associated with this connection record.
      */
-    private final ModeledConnection connection;
+    private ModeledConnection connection;
 
     /**
      * The sharing profile that was used to access the connection associated
      * with this connection record. If the connection was accessed directly
      * (without involving a sharing profile), this will be null.
      */
-    private final ModeledSharingProfile sharingProfile;
+    private ModeledSharingProfile sharingProfile;
+
+    /**
+     * The time this connection record was created.
+     */
+    private final Date startDate = new Date();
+
+    /**
+     * The UUID that will be assigned to the underlying tunnel.
+     */
+    private final UUID uuid = UUID.randomUUID();
 
     /**
      * The connection ID of the connection as determined by guacd, not to be
@@ -81,7 +91,8 @@ public class ActiveConnectionRecord extends ModeledConnectionRecord {
     /**
      * Map of all currently-shared connections.
      */
-    private final SharedConnectionMap connectionMap;
+    @Inject
+    private SharedConnectionMap connectionMap;
 
     /**
      * Manager which tracks all share keys associated with this connection
@@ -100,67 +111,13 @@ public class ActiveConnectionRecord extends ModeledConnectionRecord {
     };
 
     /**
-     * Creates a new connection record model object, associating it with the
-     * given user, connection, and sharing profile. The given sharing profile
-     * MUST be the sharing profile that was used to share access to the given
-     * connection. The start date of this connection record will be the time of
-     * its creation. No end date will be assigned.
-     *
-     * @param user
-     *     The user that connected to the connection associated with this
-     *     connection record.
-     *
-     * @param connection
-     *     The connection to associate with this connection record.
-     *
-     * @param sharingProfile
-     *     The sharing profile that was used to share access to the given
-     *     connection, or null if no sharing profile was used.
-     *
-     * @return
-     *     A new connection record model object associated with the given user,
-     *     connection, and sharing profile, and having the current date/time as
-     *     its start date.
-     */
-    private static ConnectionRecordModel createModel(RemoteAuthenticatedUser user,
-            ModeledConnection connection,
-            ModeledSharingProfile sharingProfile) {
-
-        // Create model object representing an active connection that started
-        // at the current time ...
-        ConnectionRecordModel recordModel = new ConnectionRecordModel();
-        recordModel.setStartDate(new Date());
-
-        // ... was established by the given user ...
-        recordModel.setUsername(user.getIdentifier());
-        recordModel.setRemoteHost(user.getRemoteHost());
-
-        // ... to the given connection ...
-        recordModel.setConnectionIdentifier(connection.getIdentifier());
-        recordModel.setConnectionName(connection.getName());
-
-        // ... using the given sharing profile (if any)
-        if (sharingProfile != null) {
-            recordModel.setSharingProfileIdentifier(sharingProfile.getIdentifier());
-            recordModel.setSharingProfileName(sharingProfile.getName());
-        }
-
-        return recordModel;
-        
-    }
-
-    /**
-     * Creates a new ActiveConnectionRecord associated with the given user,
+     * Initializes this connection record, associating it with the given user,
      * connection, balancing connection group, and sharing profile. The given
      * balancing connection group MUST be the connection group from which the
      * given connection was chosen, and the given sharing profile MUST be the
      * sharing profile that was used to share access to the given connection.
      * The start date of this connection record will be the time of its
      * creation.
-     *
-     * @param connectionMap
-     *     The SharedConnectionMap instance tracking all active shared
-     *     connections.
      *
      * @param user
      *     The user that connected to the connection associated with this
@@ -177,13 +134,10 @@ public class ActiveConnectionRecord extends ModeledConnectionRecord {
      *     The sharing profile that was used to share access to the given
      *     connection, or null if no sharing profile was used.
      */
-    public ActiveConnectionRecord(SharedConnectionMap connectionMap,
-            RemoteAuthenticatedUser user,
+    private void init(RemoteAuthenticatedUser user,
             ModeledConnectionGroup balancingGroup,
             ModeledConnection connection,
             ModeledSharingProfile sharingProfile) {
-        super(createModel(user, connection, sharingProfile));
-        this.connectionMap = connectionMap;
         this.user = user;
         this.balancingGroup = balancingGroup;
         this.connection = connection;
@@ -191,15 +145,11 @@ public class ActiveConnectionRecord extends ModeledConnectionRecord {
     }
    
     /**
-     * Creates a new ActiveConnectionRecord associated with the given user,
+     * Initializes this connection record, associating it with the given user,
      * connection, and balancing connection group. The given balancing
      * connection group MUST be the connection group from which the given
      * connection was chosen. The start date of this connection record will be
      * the time of its creation.
-     *
-     * @param connectionMap
-     *     The SharedConnectionMap instance tracking all active shared
-     *     connections.
      *
      * @param user
      *     The user that connected to the connection associated with this
@@ -211,21 +161,16 @@ public class ActiveConnectionRecord extends ModeledConnectionRecord {
      * @param connection
      *     The connection to associate with this connection record.
      */
-    public ActiveConnectionRecord(SharedConnectionMap connectionMap,
-            RemoteAuthenticatedUser user,
+    public void init(RemoteAuthenticatedUser user,
             ModeledConnectionGroup balancingGroup,
             ModeledConnection connection) {
-        this(connectionMap, user, balancingGroup, connection, null);
+        init(user, balancingGroup, connection, null);
     }
 
     /**
-     * Creates a new ActiveConnectionRecord associated with the given user,
+     * Initializes this connection record, associating it with the given user
      * and connection. The start date of this connection record will be the time
      * of its creation.
-     *
-     * @param connectionMap
-     *     The SharedConnectionMap instance tracking all active shared
-     *     connections.
      *
      * @param user
      *     The user that connected to the connection associated with this
@@ -234,21 +179,17 @@ public class ActiveConnectionRecord extends ModeledConnectionRecord {
      * @param connection
      *     The connection to associate with this connection record.
      */
-    public ActiveConnectionRecord(SharedConnectionMap connectionMap,
-            RemoteAuthenticatedUser user, ModeledConnection connection) {
-        this(connectionMap, user, null, connection);
+    public void init(RemoteAuthenticatedUser user,
+            ModeledConnection connection) {
+        init(user, null, connection);
     }
 
     /**
-     * Creates a new ActiveConnectionRecord associated with the given user,
+     * Initializes this connection record, associating it with the given user,
      * active connection, and sharing profile. The given sharing profile MUST be
      * the sharing profile that was used to share access to the given
      * connection. The start date of this connection record will be the time of
      * its creation.
-     *
-     * @param connectionMap
-     *     The SharedConnectionMap instance tracking all active shared
-     *     connections.
      *
      * @param user
      *     The user that connected to the connection associated with this
@@ -263,11 +204,10 @@ public class ActiveConnectionRecord extends ModeledConnectionRecord {
      *     connection, or null if no sharing profile should be used (access to
      *     the connection is unrestricted).
      */
-    public ActiveConnectionRecord(SharedConnectionMap connectionMap,
-            RemoteAuthenticatedUser user,
+    public void init(RemoteAuthenticatedUser user,
             ActiveConnectionRecord activeConnection,
             ModeledSharingProfile sharingProfile) {
-        this(connectionMap, user, null, activeConnection.getConnection(), sharingProfile);
+        init(user, null, activeConnection.getConnection(), sharingProfile);
         this.connectionID = activeConnection.getConnectionID();
     }
 
@@ -347,6 +287,63 @@ public class ActiveConnectionRecord extends ModeledConnectionRecord {
     }
 
     @Override
+    public String getConnectionIdentifier() {
+        return connection.getIdentifier();
+    }
+
+    @Override
+    public String getConnectionName() {
+        return connection.getName();
+    }
+
+    @Override
+    public String getSharingProfileIdentifier() {
+
+        // Return sharing profile identifier if known
+        if (sharingProfile != null)
+            return sharingProfile.getIdentifier();
+
+        // No associated sharing profile
+        return null;
+
+    }
+
+    @Override
+    public String getSharingProfileName() {
+
+        // Return sharing profile name if known
+        if (sharingProfile != null)
+            return sharingProfile.getName();
+
+        // No associated sharing profile
+        return null;
+
+    }
+
+    @Override
+    public Date getStartDate() {
+        return startDate;
+    }
+
+    @Override
+    public Date getEndDate() {
+
+        // Active connections have not yet ended
+        return null;
+        
+    }
+
+    @Override
+    public String getRemoteHost() {
+        return user.getRemoteHost();
+    }
+
+    @Override
+    public String getUsername() {
+        return user.getIdentifier();
+    }
+
+    @Override
     public boolean isActive() {
         return tunnel != null && tunnel.isOpen();
     }
@@ -390,7 +387,7 @@ public class ActiveConnectionRecord extends ModeledConnectionRecord {
             
             @Override
             public UUID getUUID() {
-                return ActiveConnectionRecord.this.getUUID();
+                return uuid;
             }
 
         };
@@ -402,6 +399,18 @@ public class ActiveConnectionRecord extends ModeledConnectionRecord {
         // Return newly-created tunnel
         return this.tunnel;
         
+    }
+
+    /**
+     * Returns the UUID of the underlying tunnel. If there is no underlying
+     * tunnel, this will be the UUID assigned to the underlying tunnel when the
+     * tunnel is set.
+     *
+     * @return
+     *     The current or future UUID of the underlying tunnel.
+     */
+    public UUID getUUID() {
+        return uuid;
     }
 
     /**

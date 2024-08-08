@@ -33,6 +33,26 @@
         <result column="end_date"    property="endDate"    jdbcType="TIMESTAMP"/>
     </resultMap>
 
+    <!-- Select all user records from a given user -->
+    <select id="select" resultMap="UserRecordResultMap">
+
+        SELECT
+            guacamole_user_history.remote_host,
+            guacamole_user_history.user_id,
+            guacamole_user_history.username,
+            guacamole_user_history.start_date,
+            guacamole_user_history.end_date
+        FROM guacamole_user_history
+        JOIN guacamole_user ON guacamole_user_history.user_id = guacamole_user.user_id
+        JOIN guacamole_entity ON guacamole_user.entity_id = guacamole_entity.entity_id
+        WHERE
+            guacamole_entity.name = #{username,jdbcType=VARCHAR}
+        ORDER BY
+            guacamole_user_history.start_date DESC,
+            guacamole_user_history.end_date DESC
+
+    </select>
+
     <!-- Insert the given user record -->
     <insert id="insert" useGeneratedKeys="true" keyProperty="record.recordID"
             parameterType="org.apache.guacamole.auth.jdbc.base.ActivityRecordModel">
@@ -58,10 +78,18 @@
 
     </insert>
 
-    <!-- Update the given user record, assigning an end date -->
-    <update id="updateEndDate" parameterType="org.apache.guacamole.auth.jdbc.base.ActivityRecordModel">
+    <!-- Update the given user record -->
+    <update id="update" parameterType="org.apache.guacamole.auth.jdbc.base.ActivityRecordModel">
         UPDATE guacamole_user_history
-        SET end_date = #{record.endDate,jdbcType=TIMESTAMP}
+        SET remote_host = #{record.remoteHost,jdbcType=VARCHAR},
+            user_id     = (SELECT user_id FROM guacamole_user
+                           JOIN guacamole_entity ON guacamole_user.entity_id = guacamole_entity.entity_id
+                           WHERE
+                                   guacamole_entity.name = #{record.username,jdbcType=VARCHAR}
+                               AND guacamole_entity.type = 'USER'),
+            username    = #{record.username,jdbcType=VARCHAR},
+            start_date  = #{record.startDate,jdbcType=TIMESTAMP},
+            end_date    = #{record.endDate,jdbcType=TIMESTAMP}
         WHERE history_id = #{record.recordID,jdbcType=INTEGER}
     </update>
 
@@ -69,7 +97,6 @@
     <select id="search" resultMap="UserRecordResultMap">
 
         SELECT
-            guacamole_user_history.history_id,
             guacamole_user_history.remote_host,
             guacamole_user_history.user_id,
             guacamole_user_history.username,
@@ -78,32 +105,25 @@
         FROM guacamole_user_history
 
         <!-- Search terms -->
-        <where>
-            
-            <if test="identifier != null">
-                guacamole_user_history.username = #{identifier,jdbcType=VARCHAR}
-            </if>
-            
-            <foreach collection="terms" item="term" open=" AND " separator=" AND ">
-                (
+        <foreach collection="terms" item="term"
+                 open="WHERE " separator=" AND ">
+            (
 
-                    guacamole_user_history.user_id IN (
-                        SELECT user_id
-                        FROM guacamole_user
-                        JOIN guacamole_entity ON guacamole_user.entity_id = guacamole_entity.entity_id
-                        WHERE
-                                POSITION(#{term.term,jdbcType=VARCHAR} IN guacamole_entity.name) > 0
-                            AND guacamole_entity.type = 'USER'),
-                    )
-
-                    <if test="term.startDate != null and term.endDate != null">
-                        OR start_date BETWEEN #{term.startDate,jdbcType=TIMESTAMP} AND #{term.endDate,jdbcType=TIMESTAMP}
-                    </if>
-
+                guacamole_user_history.user_id IN (
+                    SELECT user_id
+                    FROM guacamole_user
+                    JOIN guacamole_entity ON guacamole_user.entity_id = guacamole_entity.entity_id
+                    WHERE
+                            POSITION(#{term.term,jdbcType=VARCHAR} IN guacamole_entity.name) > 0
+                        AND guacamole_entity.type = 'USER'),
                 )
-            </foreach>
-            
-        </where>
+
+                <if test="term.startDate != null and term.endDate != null">
+                    OR start_date BETWEEN #{term.startDate,jdbcType=TIMESTAMP} AND #{term.endDate,jdbcType=TIMESTAMP}
+                </if>
+
+            )
+        </foreach>
 
         <!-- Bind sort property enum values for sake of readability -->
         <bind name="START_DATE" value="@org.apache.guacamole.net.auth.ActivityRecordSet$SortableProperty@START_DATE"/>
@@ -126,7 +146,6 @@
     <select id="searchReadable" resultMap="UserRecordResultMap">
 
         SELECT
-            guacamole_user_history.history_id,
             guacamole_user_history.remote_host,
             guacamole_user_history.user_id,
             guacamole_user_history.username,
@@ -134,41 +153,36 @@
             guacamole_user_history.end_date
         FROM guacamole_user_history
 
+        <!-- Restrict to readable users -->
+        JOIN guacamole_user_permission ON
+                guacamole_user_history.user_id       = guacamole_user_permission.affected_user_id
+            AND <include refid="org.apache.guacamole.auth.jdbc.base.EntityMapper.isRelatedEntity">
+                <property name="column"   value="guacamole_user_permission.entity_id"/>
+                <property name="entityID" value="#{user.entityID,jdbcType=INTEGER}"/>
+                <property name="groups"   value="effectiveGroups"/>
+            </include>
+            AND guacamole_user_permission.permission = 'READ'
+
         <!-- Search terms -->
-        <where>
+        <foreach collection="terms" item="term"
+                 open="WHERE " separator=" AND ">
+            (
 
-            <!-- Restrict to readable users -->
-            guacamole_connection_history.user_id IN (
-                <include refid="org.apache.guacamole.auth.jdbc.user.UserMapper.getReadableIDs">
-                    <property name="entityID" value="#{user.entityID,jdbcType=INTEGER}"/>
-                    <property name="groups"   value="effectiveGroups"/>
-                </include>
-            )
-            
-            <if test="identifier != null">
-                AND guacamole_entity.name = #{identifier,jdbcType=VARCHAR}
-            </if>
-            
-            <foreach collection="terms" item="term" open=" AND " separator=" AND ">
-                (
-
-                    guacamole_user_history.user_id IN (
-                        SELECT user_id
-                        FROM guacamole_user
-                        JOIN guacamole_entity ON guacamole_user.entity_id = guacamole_entity.entity_id
-                        WHERE
-                                POSITION(#{term.term,jdbcType=VARCHAR} IN guacamole_entity.name) > 0
-                            AND guacamole_entity.type = 'USER'
-                    )
-
-                    <if test="term.startDate != null and term.endDate != null">
-                        OR start_date BETWEEN #{term.startDate,jdbcType=TIMESTAMP} AND #{term.endDate,jdbcType=TIMESTAMP}
-                    </if>
-
+                guacamole_user_history.user_id IN (
+                    SELECT user_id
+                    FROM guacamole_user
+                    JOIN guacamole_entity ON guacamole_user.entity_id = guacamole_entity.entity_id
+                    WHERE
+                            POSITION(#{term.term,jdbcType=VARCHAR} IN guacamole_entity.name) > 0
+                        AND guacamole_entity.type = 'USER'
                 )
-            </foreach>
-            
-        </where>
+
+                <if test="term.startDate != null and term.endDate != null">
+                    OR start_date BETWEEN #{term.startDate,jdbcType=TIMESTAMP} AND #{term.endDate,jdbcType=TIMESTAMP}
+                </if>
+
+            )
+        </foreach>
 
         <!-- Bind sort property enum values for sake of readability -->
         <bind name="START_DATE" value="@org.apache.guacamole.net.auth.ActivityRecordSet$SortableProperty@START_DATE"/>

@@ -31,9 +31,6 @@ public interface SessionResourceFactory {
      * Creates a new SessionResource which exposes the contents of the
      * given GuacamoleSession.
      *
-     * @param token
-     *     The authentication token associated with the given session.
-     *
      * @param session
      *     The GuacamoleSession whose contents should be exposed.
      *
@@ -41,6 +38,6 @@ public interface SessionResourceFactory {
      *     A new SessionResource which exposes the contents of the given
      *     GuacamoleSession.
      */
-    SessionResource create(String token, GuacamoleSession session);
+    SessionResource create(GuacamoleSession session);
 
 }

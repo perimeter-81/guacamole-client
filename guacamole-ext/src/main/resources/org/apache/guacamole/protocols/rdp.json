@@ -38,8 +38,7 @@
                 },
                 {
                     "name"    : "disable-auth",
-                    "type"    : "BOOLEAN",
-                    "options" : [ "false" ]
+                    "type"    : "BOOLEAN"
                 },
                 {
                     "name"    : "ignore-cert",

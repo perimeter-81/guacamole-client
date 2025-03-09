@@ -21,11 +21,13 @@
             "fields" : [
                 {
                     "name"  : "username",
-                    "type"  : "USERNAME"
+                    "type"  : "USERNAME",
+                    "required": "true"
                 },
                 {
                     "name"  : "password",
-                    "type"  : "PASSWORD"
+                    "type"  : "PASSWORD",
+                    "required": "true"
                 },
                 {
                     "name"  : "domain",

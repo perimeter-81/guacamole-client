@@ -314,7 +314,7 @@ public class ConfiguredGuacamoleSocket extends DelegatingGuacamoleSocket {
             throw new GuacamoleServerException("No connection ID received");
 
         id = ready.getArgs().get(0);
-
+        logger.debug("Protocol version: %v", protocolVersion);
     }
 
     /**
